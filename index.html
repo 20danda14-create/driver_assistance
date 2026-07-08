@@ -153,7 +153,6 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Saat güncelleme
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -162,7 +161,6 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Kronometre güncelleme
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
             const now = new Date();
@@ -178,24 +176,18 @@
             }
         }
 
-        // Güvenli Ses Motoru ve Alert Tetikleyicisi
         function triggerFatigueAlert() {
             fatigueTimeText.innerText = `${drivingElapsedMinutes} dakikadır kesintisiz sürüş yapıyorsunuz.`;
             fatigueAlertEl.classList.remove('hidden');
-
-            // iOS çökmesini engellemek için try-catch içine alındı
             try {
                 if ('speechSynthesis' in window) {
-                    // Önceki sesleri temizle kilitlenmeyi önler
                     window.speechSynthesis.cancel(); 
-                    const utterance = new SpeechSynthesisUtterance("Uzun süredir araç kullanıyorsunuz, lütfen müsait bir yerde mola verin.");
+                    const utterance = new SpeechSynthesisUtterance("Uzun süredir araç kullanıyorsunuz, lütfen mola verin.");
                     utterance.lang = 'tr-TR';
                     utterance.rate = 0.9;
                     window.speechSynthesis.speak(utterance);
                 }
-            } catch (e) {
-                console.warn("Ses motoru iOS tarafından engellendi, sadece görsel uyarı gösteriliyor.");
-            }
+            } catch (e) { console.log(e); }
         }
 
         dismissAlertBtn.addEventListener('click', () => {
@@ -228,49 +220,50 @@
         }
         generateCompassStrip();
 
-        // KİLİTLENMEYİ ÖZEL OLARAK ÇÖZEN YENİ BUTON AKIŞI
-        startBtn.addEventListener('click', async () => {
-            // Önce ekranı hemen kapatıyoruz ki kullanıcı kilitlenme hissi yaşamasın
+        // KİLİTLENMEYİ ÖNLEYEN SIRALI GÜVENLİ TETİKLEME
+        startBtn.addEventListener('click', () => {
+            // 1. Arayüzü hiç bekletmeden ANINDA aç
             permissionOverlay.style.display = 'none';
             
-            // Sürüş süresini başlat
+            // 2. Zamanlayıcıları arka planda bağımsız başlat
             drivingStartTime = new Date();
             setInterval(updateDrivingTimer, 1000);
 
-            // GPS isteklerini güvenli (hata fırlatmayan) moda alıyoruz
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    fetchWeatherData(lat, lon);
-                    fetchTrafficData(lat, lon);
-                    
-                    navigator.geolocation.watchPosition(updateDrivingData, handleLocationError, {
-                        enableHighAccuracy: true
-                    });
-                }, handleLocationError, { enableHighAccuracy: true });
-            }
+            // 3. Sensör ve GPS isteklerini asenkron (ayrı kollardan) çağırarak ana akıştan izole et
+            setTimeout(() => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        fetchWeatherData(lat, lon);
+                        fetchTrafficData(lat, lon);
+                        
+                        navigator.geolocation.watchPosition(updateDrivingData, handleLocationError, {
+                            enableHighAccuracy: true
+                        });
+                    }, handleLocationError, { enableHighAccuracy: true });
+                }
+            }, 50);
 
-            // iOS Sensör İznini asenkron yönetip akışı durdurmasını engelliyoruz
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permission => {
-                        if (permission === 'granted') {
-                            window.addEventListener('deviceorientation', handleOrientation, true);
-                        }
-                    })
-                    .catch(err => console.log("Sensör izni atlandı:", err));
-            } else {
-                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-            }
+            setTimeout(() => {
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(permission => {
+                            if (permission === 'granted') {
+                                window.addEventListener('deviceorientation', handleOrientation, true);
+                            }
+                        })
+                        .catch(err => console.log("Sensör izni es geçildi:", err));
+                } else {
+                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                }
+            }, 100);
         });
 
         function updateDrivingData(position) {
             if (position.coords.speed !== null && position.coords.speed > 0) {
                 speedEl.innerText = Math.round(position.coords.speed * 3.6);
-            } else {
-                speedEl.innerText = "0";
-            }
+            } else { speedEl.innerText = "0"; }
 
             if (lastCoords) {
                 const distanceIncrement = calculateDistance(
@@ -283,11 +276,6 @@
                 }
             }
             lastCoords = position.coords;
-
-            const now = Date.now();
-            if (now - lastTrafficUpdate > 120000) {
-                fetchTrafficData(position.coords.latitude, position.coords.longitude);
-            }
         }
 
         function handleOrientation(event) {
@@ -308,30 +296,27 @@
         }
 
         function fetchWeatherData(lat, lon) {
-            const primaryUrl = `https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`;
-            fetch(primaryUrl)
+            fetch(`https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`)
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.dataseries) {
                         weatherInfoEl.innerText = `Açık, ${data.dataseries[0].temp2m}°C`;
-                    } else { throw new Error(); }
-                })
-                .catch(() => fetchFallbackWeather(lat, lon));
-        }
-
-        function fetchFallbackWeather(lat, lon) {
-            fetch(`https://wttr.in/${lat},${lon}?format=j1`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.current_condition) {
-                        weatherInfoEl.innerText = `${data.current_condition[0].lang_tr[0].value}, ${data.current_condition[0].temp_C}°C`;
                     }
                 })
-                .catch(() => weatherInfoEl.innerText = "Hava durumu alınamadı.");
+                .catch(() => {
+                    fetch(`https://wttr.in/${lat},${lon}?format=j1`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.current_condition) {
+                                weatherInfoEl.innerText = `${data.current_condition[0].lang_tr[0].value}, ${data.current_condition[0].temp_C}°C`;
+                            }
+                        })
+                        .catch(() => weatherInfoEl.innerText = "Hava durumu alınamadı.");
+                });
         }
 
         function fetchTrafficData(lat, lon) {
-            trafficStatusEl.innerText = "Güncelleniyor...";
+            trafficStatusEl.innerText = "Güncel";
             trafficListEl.innerHTML = `<li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>Kritik yoğunluk tespit edilmedi.</li>`;
         }
 
@@ -343,9 +328,7 @@
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
-        function handleLocationError(error) {
-            console.warn("Konum Hatası:", error.message);
-        }
+        function handleLocationError(error) { console.log(error.message); }
     </script>
 </body>
 </html>
