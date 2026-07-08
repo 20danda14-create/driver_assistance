@@ -72,7 +72,7 @@
         </div>
         <div class="text-center bg-slate-900/50 px-4 py-1.5 rounded-xl border border-slate-700/30">
             <div id="hud-time" class="text-lg font-mono font-bold text-white tracking-wider">00:00:00</div>
-            <div id="hud-date" class="text-[10px] text-slate-400 font-medium uppercase tracking-widest">01 OCAK 2026</div>
+            <div id="hud-date" class="text-[10px] text-slate-400 font-medium uppercase tracking-widest">-- --- ----</div>
         </div>
         <div class="text-right">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400">
@@ -82,7 +82,6 @@
     </header>
 
     <main class="flex-1 flex flex-col items-center justify-center my-6 space-y-8">
-        
         <div class="text-center">
             <div id="speed" class="text-8xl font-black tracking-tighter text-white">0</div>
             <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">KM/H ANLIK HIZ</div>
@@ -94,7 +93,6 @@
             <div id="hud-compass-strip"></div>
         </div>
         <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">HUD YÖN</div>
-
     </main>
 
     <footer class="space-y-3">
@@ -133,10 +131,9 @@
         let lastCoords = null;
         let lastTrafficUpdate = 0;
         
-        // YENİ: Sürüş Süresi ve Yorgunluk Takip Değişkenleri
         let drivingStartTime = null;
         let drivingElapsedMinutes = 0;
-        const MOLA_ESIGI_DAKIKA = 120; // 2 Saat (Test etmek için geçici olarak 1 yapabilirsin)
+        const MOLA_ESIGI_DAKIKA = 120; 
 
         const hudCompassStrip = document.getElementById('hud-compass-strip');
         const headingDisplay = document.getElementById('heading-display');
@@ -149,7 +146,6 @@
         const trafficStatusEl = document.getElementById('traffic-status');
         const resetDistanceBtn = document.getElementById('reset-distance');
         
-        // Yeni Elementler
         const timeEl = document.getElementById('hud-time');
         const dateEl = document.getElementById('hud-date');
         const drivingDurationEl = document.getElementById('driving-duration');
@@ -157,63 +153,60 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Güncelleme Fonksiyonu
+        // Saat güncelleme
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
-            
-            const options = { day: 'numeric', month: 'LONG', year: 'numeric' };
-            dateEl.innerText = now.toLocaleDateString('tr-TR', options);
+            dateEl.innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'LONG', year: 'numeric' });
         }
         setInterval(updateClock, 1000);
-        updateClock(); // Açılışta hemen çalıştır
+        updateClock();
 
-        // Sürüş Süresi ve Mola İkaz Mekanizması
+        // Kronometre güncelleme
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
-            
             const now = new Date();
             const diffMs = now - drivingStartTime;
             const diffMins = Math.floor(diffMs / 60000);
             const diffSecs = Math.floor((diffMs % 60000) / 1000);
             
             drivingElapsedMinutes = diffMins;
+            drivingDurationEl.innerText = `${diffMins.toString().padStart(2, '0')}:${diffSecs.toString().padStart(2, '0')}`;
 
-            // Alt paneldeki HH:MM formatı
-            const displayMins = diffMins.toString().padStart(2, '0');
-            const displaySecs = diffSecs.toString().padStart(2, '0');
-            drivingDurationEl.innerText = `${displayMins}:${displaySecs}`;
-
-            // Mola Eşiği Kontrolü
             if (drivingElapsedMinutes >= MOLA_ESIGI_DAKIKA && fatigueAlertEl.classList.contains('hidden')) {
                 triggerFatigueAlert();
             }
         }
 
+        // Güvenli Ses Motoru ve Alert Tetikleyicisi
         function triggerFatigueAlert() {
             fatigueTimeText.innerText = `${drivingElapsedMinutes} dakikadır kesintisiz sürüş yapıyorsunuz.`;
             fatigueAlertEl.classList.remove('hidden');
 
-            // Sesli İkaz (iOS/Safari Text-to-Speech Altyapısı)
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance("Uzun süredir araç kullanıyorsunuz, lütfen müsait bir yerde mola verin.");
-                utterance.lang = 'tr-TR';
-                utterance.rate = 0.9; // Biraz daha yavaş ve anlaşılır tonlama
-                window.speechSynthesis.speak(utterance);
+            // iOS çökmesini engellemek için try-catch içine alındı
+            try {
+                if ('speechSynthesis' in window) {
+                    // Önceki sesleri temizle kilitlenmeyi önler
+                    window.speechSynthesis.cancel(); 
+                    const utterance = new SpeechSynthesisUtterance("Uzun süredir araç kullanıyorsunuz, lütfen müsait bir yerde mola verin.");
+                    utterance.lang = 'tr-TR';
+                    utterance.rate = 0.9;
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (e) {
+                console.warn("Ses motoru iOS tarafından engellendi, sadece görsel uyarı gösteriliyor.");
             }
         }
 
-        // Mola Verildiğinde Sayacı Sıfırlama
         dismissAlertBtn.addEventListener('click', () => {
             fatigueAlertEl.classList.add('hidden');
-            drivingStartTime = new Date(); // Sürüş başlangıcını şu ana çekerek sıfırla
-            updateDrivingTimer();
+            drivingStartTime = new Date();
         });
 
         resetDistanceBtn.addEventListener('click', () => {
             totalDistance = 0;
             distanceEl.innerText = "0.00 km";
-            drivingStartTime = new Date(); // Sıfırla butonu süreyi de baştan başlatır
+            drivingStartTime = new Date();
         });
 
         function generateCompassStrip() {
@@ -222,10 +215,10 @@
                 for (let i = 0; i < 36; i++) {
                     let degree = i * 10;
                     let label = degree.toString().padStart(3, '0');
-                    if (degree === 0) label = 'N';
-                    else if (degree === 90) label = 'E';
-                    else if (degree === 180) label = 'S';
-                    else if (degree === 270) label = 'W';
+                    if (degree === 0) label = 'K';
+                    else if (degree === 90) label = 'D';
+                    else if (degree === 180) label = 'G';
+                    else if (degree === 270) label = 'B';
                     
                     stripContent += `<span class="compass-label inline-block text-center w-24">${label}</span>`;
                     stripContent += `<span class="compass-tick inline-block text-center w-6 text-sm text-slate-600">|</span>`;
@@ -235,18 +228,20 @@
         }
         generateCompassStrip();
 
+        // KİLİTLENMEYİ ÖZEL OLARAK ÇÖZEN YENİ BUTON AKIŞI
         startBtn.addEventListener('click', async () => {
-            weatherInfoEl.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-1"></i> Veriler çekiliyor...`;
+            // Önce ekranı hemen kapatıyoruz ki kullanıcı kilitlenme hissi yaşamasın
+            permissionOverlay.style.display = 'none';
             
-            // Sürüş kronometresini başlat
+            // Sürüş süresini başlat
             drivingStartTime = new Date();
             setInterval(updateDrivingTimer, 1000);
 
+            // GPS isteklerini güvenli (hata fırlatmayan) moda alıyoruz
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
-                    
                     fetchWeatherData(lat, lon);
                     fetchTrafficData(lat, lon);
                     
@@ -254,32 +249,25 @@
                         enableHighAccuracy: true
                     });
                 }, handleLocationError, { enableHighAccuracy: true });
-            } else {
-                alert("GPS desteği bulunamadı.");
             }
 
+            // iOS Sensör İznini asenkron yönetip akışı durdurmasını engelliyoruz
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceOrientationEvent.requestPermission();
-                    if (permission === 'granted') {
-                        window.addEventListener('deviceorientation', handleOrientation, true);
-                    } else {
-                        alert("Pusula izni reddedildi.");
-                    }
-                } catch (err) {
-                    console.error("Sensör izin hatası:", err);
-                }
+                DeviceOrientationEvent.requestPermission()
+                    .then(permission => {
+                        if (permission === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                        }
+                    })
+                    .catch(err => console.log("Sensör izni atlandı:", err));
             } else {
                 window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             }
-
-            permissionOverlay.style.display = 'none';
         });
 
         function updateDrivingData(position) {
             if (position.coords.speed !== null && position.coords.speed > 0) {
-                const kmh = Math.round(position.coords.speed * 3.6);
-                speedEl.innerText = kmh;
+                speedEl.innerText = Math.round(position.coords.speed * 3.6);
             } else {
                 speedEl.innerText = "0";
             }
@@ -313,10 +301,8 @@
             if (heading !== null) {
                 const roundedHeading = Math.round(heading);
                 headingDisplay.innerText = `${roundedHeading.toString().padStart(3, '0')}°`;
-                
                 const stripWidth = hudCompassStrip.offsetWidth / 2;
                 const translation = (heading / 360) * stripWidth;
-                
                 hudCompassStrip.style.transform = `translateX(${-translation}px)`;
             }
         }
@@ -324,27 +310,21 @@
         function fetchWeatherData(lat, lon) {
             const primaryUrl = `https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`;
             fetch(primaryUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error("Primary failed");
-                    return response.json();
-                })
+                .then(res => res.json())
                 .then(data => {
-                    if (data && data.dataseries && data.dataseries.length > 0) {
-                        const current = data.dataseries[0];
-                        weatherInfoEl.innerText = `Açık, ${current.temp2m}°C`;
-                    } else { throw new Error("Bad data"); }
+                    if (data && data.dataseries) {
+                        weatherInfoEl.innerText = `Açık, ${data.dataseries[0].temp2m}°C`;
+                    } else { throw new Error(); }
                 })
                 .catch(() => fetchFallbackWeather(lat, lon));
         }
 
         function fetchFallbackWeather(lat, lon) {
-            const fallbackUrl = `https://wttr.in/${lat},${lon}?format=j1`;
-            fetch(fallbackUrl)
+            fetch(`https://wttr.in/${lat},${lon}?format=j1`)
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.current_condition) {
-                        const current = data.current_condition[0];
-                        weatherInfoEl.innerText = `${current.lang_tr[0].value}, ${current.temp_C}°C`;
+                        weatherInfoEl.innerText = `${data.current_condition[0].lang_tr[0].value}, ${data.current_condition[0].temp_C}°C`;
                     }
                 })
                 .catch(() => weatherInfoEl.innerText = "Hava durumu alınamadı.");
@@ -355,18 +335,16 @@
             trafficListEl.innerHTML = `<li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>Kritik yoğunluk tespit edilmedi.</li>`;
         }
 
-        // Haversine Formülü
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
         function handleLocationError(error) {
-            console.error("GPS Hatası:", error);
+            console.warn("Konum Hatası:", error.message);
         }
     </script>
 </body>
