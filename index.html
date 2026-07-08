@@ -1,770 +1,305 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Bumpy Ride — iOS Uyumlu v6.5</title>
-
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Bumpy Ride">
-<meta name="mobile-web-app-capable" content="yes">
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --surface2: #1a1a26;
-    --border: rgba(255,255,255,0.08);
-    --accent: #7c6af7;
-    --accent2: #3dd6ac;
-    --accent3: #f7a26a;
-    --text: #f0eeff;
-    --text2: rgba(240,238,255,0.55);
-    --text3: rgba(240,238,255,0.3);
-    --danger: #f74a6a;
-    --radius: 16px;
-    --radius-sm: 8px;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; overflow-x: hidden; }
-
-  .app { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
-  .header { text-align: center; margin-bottom: 20px; }
-  .logo { font-size: 11px; font-family: monospace; letter-spacing: 0.3em; color: var(--accent); text-transform: uppercase; }
-  .title { font-size: 28px; font-weight: 800; }
-
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .card-label { font-size: 11px; font-family: monospace; color: var(--text3); text-transform: uppercase; }
-  .card-badge { font-size: 10px; font-family: monospace; padding: 3px 8px; border-radius: 4px; border: 1px solid; }
-  .badge-active { color: var(--accent2); border-color: rgba(61,214,172,0.3); background: rgba(61,214,172,0.08); }
-  .badge-warn { color: var(--accent3); border-color: rgba(247,162,106,0.3); background: rgba(247,162,106,0.08); }
-
-  .db-value { font-size: 54px; font-family: monospace; font-weight: 700; line-height: 1; }
-  
-  .metrics-row-triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 16px 0; }
-  .metric-subbox { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 4px; text-align: center; }
-  .metric-subbox .m-lbl { font-size: 9px; font-family: monospace; color: var(--text3); text-transform: uppercase; }
-  .metric-subbox .m-val { font-size: 13px; font-family: monospace; font-weight: 700; margin-top: 4px; }
-
-  /* Harita Görünürlük ve Animasyon Ayarları */
-  .map-container { 
-    background: var(--surface2); 
-    border: 1px solid var(--border); 
-    border-radius: var(--radius); 
-    height: 260px; 
-    margin: 16px 0 0 0; 
-    position: relative; 
-    overflow: hidden; 
-    z-index: 1; 
-    display: none;
-    opacity: 0;
-    transition: opacity 0.3s ease, margin 0.3s ease;
-  }
-  .map-container.show {
-    display: block;
-    opacity: 1;
-  }
-  #map { width: 100%; height: 100%; }
-
-  /* Hava Durumu Modülü Tasarımı */
-  .weather-box {
-    background: rgba(61, 214, 172, 0.03);
-    border: 1px solid rgba(61, 214, 172, 0.12);
-    border-radius: var(--radius-sm);
-    padding: 12px;
-    margin: 16px 0;
-    display: none;
-  }
-  .weather-title {
-    font-size: 11px;
-    font-family: monospace;
-    font-weight: bold;
-    color: var(--accent2);
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .weather-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px;
-    font-family: monospace;
-    font-size: 12px;
-  }
-  .weather-item { color: var(--text2); }
-  .weather-item span { color: var(--text); font-weight: bold; }
-
-  /* Trafik Radarı */
-  .traffic-radar-box { background: rgba(247, 74, 106, 0.04); border: 1px solid rgba(247, 74, 106, 0.15); border-radius: var(--radius); padding: 16px; margin: 16px 0; display: none; }
-  .radar-title { font-size: 12px; font-family: monospace; font-weight: bold; color: var(--danger); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; display: flex; justify-content: space-between; }
-  .traffic-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-  .traffic-item { background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 10px; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center; }
-  .traffic-info { display: flex; flex-direction: column; gap: 2px; }
-  .traffic-road-name { font-size: 13px; font-weight: bold; color: var(--text); }
-  .traffic-distance-meta { font-size: 10px; font-family: monospace; color: var(--text3); }
-  .traffic-status-badge { font-size: 11px; font-family: monospace; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
-  .status-heavy { background: rgba(247, 74, 106, 0.15); color: var(--danger); border: 1px solid rgba(247, 74, 106, 0.3); }
-  .status-jam { background: #f74a6a; color: #0a0a0f; }
-
-  /* Geri Bildirim */
-  .feedback-box { background: rgba(124,106,247,0.06); border: 1px solid rgba(124,106,247,0.2); border-radius: var(--radius-sm); padding: 14px; margin: 16px 0; display: none; }
-  .feedback-title { font-size: 13px; font-weight: 700; color: var(--accent2); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-  .feedback-text { font-size: 12px; font-family: monospace; color: var(--text2); line-height: 1.5; }
-
-  /* Butonlar */
-  .ride-btn-group { display: grid; grid-template-columns: 1fr; gap: 10px; }
-  .ride-btn { padding: 16px; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
-  .btn-start { background: var(--accent2); color: #0a0a0f; }
-  .btn-stop { background: var(--danger); color: #fff; }
-  .btn-play { background: #7c6af7; color: #fff; }
-  
-  .btn-map-toggle {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 10px 14px;
-    font-size: 13px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    width: 100%;
-    margin-top: 10px;
-    font-family: monospace;
-    transition: background 0.2s;
-  }
-  .btn-map-toggle:active { background: var(--border); }
-  
-  /* Hata ve Uyarı Satırı */
-  .system-status-msg {
-    font-size: 11px;
-    font-family: monospace;
-    color: var(--accent3);
-    margin-top: 6px;
-    text-align: center;
-    display: none;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sürüş Destek Asistanı</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+    </style>
 </head>
-<body>
+<body class="h-screen flex flex-col justify-between p-4 overflow-hidden select-none">
 
-<div class="app">
-  <div class="header">
-    <div class="logo">Bumpy Ride Telemetry</div>
-    <div class="title">Sürüş Analitiği v6.5</div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <div class="card-label" id="panel-label">Anlık Telemetri</div>
-      <div class="card-badge badge-warn" id="ride-badge">Hazır</div>
-    </div>
-    
-    <div style="display: flex; justify-content: space-between; align-items: baseline;">
-      <div class="db-value" id="ride-value">0.00</div>
-      <div style="font-size: 11px; color: var(--text3); font-family: monospace" id="ride-peak-label">Tepe Noktası: 0.00 G</div>
-    </div>
-    
-    <div style="font-size:11px; font-family:monospace; color:var(--text3); margin-top:4px;">
-        Pusula Başı:
-        <span id="heading-value" style="color: var(--accent3); font-weight: bold;">--° (N)</span>
-    </div>
-    
-    <div class="metrics-row-triple">
-      <div class="metric-subbox">
-        <div class="m-lbl">Mesafe</div>
-        <div class="m-val" id="metric-distance">0 m</div>
-      </div>
-      <div class="metric-subbox">
-        <div class="m-lbl" id="speed-label-type">Mevcut Hız</div>
-        <div class="m-val" id="metric-speed" style="color: var(--accent2);">0 km/s</div>
-      </div>
-      <div class="metric-subbox">
-        <div class="m-lbl">Sürüş Süresi</div>
-        <div class="m-val" id="metric-duration">00:00:00</div>
-      </div>
-    </div>
-
-    <div class="weather-box" id="weather-panel">
-      <div class="weather-title">☀ Bölgesel Hava Durumu</div>
-      <div class="weather-grid">
-        <div class="weather-item">Sıcaklık: <span id="weather-temp">--°C</span></div>
-        <div class="weather-item">Rüzgar: <span id="weather-wind">-- km/s</span></div>
-        <div class="weather-item">Durum: <span id="weather-status">--</span></div>
-      </div>
-    </div>
-
-    <button id="btn-map" class="btn-map-toggle">🗺 Haritayı Göster</button>
-
-    <div class="map-container" id="map-box">
-      <div id="map"></div>
-    </div>
-
-    <div class="system-status-msg" id="system-msg-box"></div>
-
-    <div class="traffic-radar-box" id="radar-panel">
-      <div class="radar-title">
-        <span>📡 5 KM Çapındaki Yoğunluklar</span>
-        <span style="color: var(--text3);">Google Veri Hibriti</span>
-      </div>
-      <ul class="traffic-list" id="traffic-list-wrapper"></ul>
-    </div>
-
-    <div class="feedback-box" id="ride-feedback">
-      <div class="feedback-title">
-        <span>📋 Sürüş Konfor Raporu</span>
-        <span id="feedback-score" style="color: var(--accent3); font-family: monospace; font-weight: bold;">Skor: --</span>
-      </div>
-      <div class="feedback-text" id="feedback-text">Analiz bekleniyor...</div>
-    </div>
-
-    <div id="ride-label" style="text-align: center; font-size: 12px; font-family: monospace; color: var(--text2); margin-top: 16px; margin-bottom: 16px;">iOS 14+ / Chrome & Safari Hibrit Kararlılık Sürümü</div>
-
-    <div class="ride-btn-group">
-      <button class="ride-btn btn-start" id="btn-ride-toggle">Sürüşü Başlat</button>
-    </div>
-  </div>
-</div>
-
-<video id="ios-wake-video" playsinline loop muted style="display:none; width:1px; height:1px;"></video>
-
-<script>
-// Durum Yönetimi
-let currentAppFlowState = 'ready'; 
-let driveSessionData = [];
-
-// Takip Sistemleri
-let watchId = null;
-let rideStartTime = null;
-let durationTimer = null;
-let heartbeatTimer = null;
-let weatherTimer = null;
-let wakeLock = null;
-let currentSpeedKmh = 0;
-let lastKnownLatLng = null;
-
-// Hava Durumu Hafızası (Offline Kontrolü İçin)
-let lastCachedWeather = null;
-
-// İvme Analiz
-let sessionMaxG = 0;
-let sessionTotalG = 0;
-let sessionCount = 0;
-
-// Leaflet
-let map = null;
-let livePolyline = null; 
-let playbackMarker = null;
-let radarCircleLayer = null;
-
-// WMO Weather Codes Çeviri Tablosu
-const weatherCodeMap = {
-  0: "Açık", 1: "Çoğunlukla Açık", 2: "Parçalı Bulutlu", 3: "Bulutlu",
-  45: "Sisli", 48: "Kırağı Sis", 51: "Hafif Çisenti", 53: "Çisenti", 55: "Yoğun Çisenti",
-  61: "Hafif Yağmurlu", 63: "Yağmurlu", 65: "Şiddetli Yağmur",
-  71: "Hafif Kar", 73: "Kar Yağışlı", 75: "Yoğun Kar",
-  77: "Grapel", 80: "Hafif Sağanak", 81: "Sağanak Yağış", 82: "Şiddetli Sağanak",
-  85: "Hafif Kar Sağanağı", 86: "Yoğun Kar Sağanağı", 95: "Gökgürültülü Fırtına"
-};
-
-window.addEventListener('DOMContentLoaded', () => {
-  initLeafletMap(39.9208, 32.8541);
-  
-  // Güvenli Sensör Dinleyicileri
-  try {
-    window.addEventListener('devicemotion', calculateMotionStream, true);
-  } catch(e) {}
-  
-  // Standart Android ve Genel Cihazlar İçin Pusula Dinleyicisi
-  if ('ondeviceorientationabsolute' in window) {
-    window.addEventListener('deviceorientationabsolute', handleCompassHeading, true);
-  } else {
-    window.addEventListener('deviceorientation', handleCompassHeading, true);
-  }
-
-  // Pusula Kalibrasyon İhtiyacı Dinleyicisi
-  window.addEventListener('compassneedscalibration', () => {
-    showSystemMessage("⚠️ Pusula kalibrasyonu gerekli! Cihazı havada 8 çizecek şekilde sallayın.");
-  });
-
-  // Buton Dinleyicileri
-  document.getElementById('btn-ride-toggle').addEventListener('click', handleMainButtonClick);
-  document.getElementById('btn-map').addEventListener('click', toggleMapVisibility);
-});
-
-// Pusula Verisi İşleme Fonksiyonu
-function handleCompassHeading(e) {
-  let heading = e.webkitCompassHeading !== undefined ? e.webkitCompassHeading : (e.absolute === true || e.alpha !== null ? (360 - e.alpha) : null);
-  
-  if (heading === null) return;
-
-  // 360 derece sınır kontrolü
-  if (heading < 0) heading += 360;
-  if (heading >= 360) heading -= 360;
-
-  const dirs = ["N", "KD", "D", "GD", "G", "GB", "B", "KB", "N"];
-  let dir = dirs[Math.round(heading / 45)];
-
-  document.getElementById("heading-value").textContent = `${heading.toFixed(0)}° (${dir})`;
-}
-
-// Harita Göster/Gizle Mekanizması (Animasyon ve Canlı Yenileme Destekli)
-function toggleMapVisibility() {
-  const mapBox = document.getElementById("map-box");
-  const btn = document.getElementById("btn-map");
-
-  if (mapBox.style.display === "none" || mapBox.style.display === "") {
-    mapBox.style.display = "block";
-    setTimeout(() => {
-      mapBox.classList.add("show");
-      if (map) {
-        map.invalidateSize();
-        // Harita gizliyken rota güncellendiyse haritayı son konuma odaklar
-        if (lastKnownLatLng) {
-          map.setView([lastKnownLatLng.lat, lastKnownLatLng.lon], map.getZoom());
-        }
-      }
-    }, 50);
-    btn.innerText = "🗺 Haritayı Gizle";
-  } else {
-    mapBox.classList.remove("show");
-    mapBox.style.display = "none";
-    btn.innerText = "🗺 Haritayı Göster";
-  }
-}
-
-// Open-Meteo API Entegrasyonu (Hata Yönetimi ve 5 Dakika Cache Korumalı)
-async function updateWeather(lat, lon) {
-  try {
-    const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m`
-    );
-    if (!response.ok) throw new Error("Ağ hatası");
-    
-    const data = await response.json();
-    lastCachedWeather = data; // Son başarılı hava durumunu kaydet
-    renderWeatherData(data);
-  } catch (err) {
-    console.warn("Hava durumu güncellenemedi, hafızadaki veri kullanılıyor:", err.message);
-    if (lastCachedWeather) {
-      renderWeatherData(lastCachedWeather);
-    }
-  }
-}
-
-function renderWeatherData(data) {
-  document.getElementById("weather-panel").style.display = "block";
-  document.getElementById("weather-temp").innerHTML = `${Math.round(data.current.temperature_2m)}°C`;
-  document.getElementById("weather-wind").innerHTML = `${Math.round(data.current.wind_speed_10m)} km/s`;
-  
-  let code = data.current.weather_code;
-  document.getElementById("weather-status").innerHTML = weatherCodeMap[code] || "Bilinmiyor";
-}
-
-function showSystemMessage(text, duration = 5000) {
-  const box = document.getElementById("system-msg-box");
-  box.textContent = text;
-  box.style.display = "block";
-  if (duration > 0) {
-    setTimeout(() => { box.style.display = "none"; }, duration);
-  }
-}
-
-function initLeafletMap(startLat, startLon) {
-  if (!map) {
-    map = L.map('map', { zoomControl: false }).setView([startLat, startLon], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, opacity: 0.9 }).addTo(map);
-    
-    // Google Canlı Trafik Katmanı
-    L.tileLayer('https://mt{s}.google.com/vt/lyrs=h@e,traffic&x={x}&y={y}&z={z}', {
-      subdomains: ['0', '1', '2', '3'],
-      maxZoom: 19,
-      opacity: 0.85,
-      zIndex: 5
-    }).addTo(map);
-
-    livePolyline = L.polyline([], { color: '#7c6af7', weight: 6, opacity: 0.95 }).addTo(map);
-  } else {
-    map.setView([startLat, startLon], 14);
-    livePolyline.setLatLngs([]);
-  }
-}
-
-function scanNearbyTrafficRadar(centerLat, centerLon) {
-  const radarPanel = document.getElementById('radar-panel');
-  const listWrapper = document.getElementById('traffic-list-wrapper');
-  
-  radarPanel.style.display = 'block';
-  listWrapper.innerHTML = '';
-
-  if (radarCircleLayer) map.removeLayer(radarCircleLayer);
-  radarCircleLayer = L.circle([centerLat, centerLon], {
-    radius: 5000, color: '#7c6af7', weight: 1, fillColor: '#7c6af7', fillOpacity: 0.02, dashArray: '4, 4'
-  }).addTo(map);
-
-  const regionalTrafficDatabase = [
-    { name: "Eskişehir Yolu (Dumlupınar Blv.) - Çukurambar Aksı", lat: 39.9098, lon: 32.8122, baseStatus: "Yoğun", speed: "22 km/s" },
-    { name: "İstanbul Yolu - Çiftlik Kavşağı Bölgesi", lat: 39.9442, lon: 32.7980, baseStatus: "Kilit", speed: "12 km/s" },
-    { name: "Konya Yolu (Mevlana Blv.) - Taurus AVM Önü", lat: 39.8885, lon: 32.8115, baseStatus: "Yoğun", speed: "28 km/s" },
-    { name: "Kızılay - Atatürk Bulvarı Merkez Hattı", lat: 39.9208, lon: 32.8541, baseStatus: "Kilit", speed: "8 km/s" },
-    { name: "Anadolu Bulvarı - GİMAT Kavşağı İstikameti", lat: 39.9575, lon: 32.7952, baseStatus: "Yoğun", speed: "24 km/s" }
-  ];
-
-  let foundPointsCount = 0;
-  regionalTrafficDatabase.forEach(item => {
-    let distanceInMeters = computeHaversineDistance(centerLat, centerLon, item.lat, item.lon);
-    if (distanceInMeters <= 5000) {
-      foundPointsCount++;
-      let distKm = (distanceInMeters / 1000).toFixed(1);
-      let badgeClass = item.baseStatus === "Kilit" ? "status-jam" : "status-heavy";
-      
-      let li = document.createElement('li');
-      li.className = 'traffic-item';
-      li.innerHTML = `
-        <div class="traffic-info">
-          <span class="traffic-road-name">${item.name}</span>
-          <span class="traffic-distance-meta">Mesafe: ${distKm} km | Google Katmanında İşaretli</span>
+    <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center">
+        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
+            <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
+            <h1 class="text-2xl font-bold mb-4">Sürüş Asistanı</h1>
+            <p class="text-slate-400 text-sm mb-8">Uygulamanın çalışabilmesi için konum (hız ve mesafe için) ve hareket sensörü (pusula için) izinleri gereklidir.</p>
+            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg shadow-blue-500/30">
+                Sistemleri Başlat ve İzin Ver
+            </button>
         </div>
-        <span class="traffic-status-badge ${badgeClass}">${item.speed}</span>
-      `;
-      listWrapper.appendChild(li);
-    }
-  });
+    </div>
 
-  if (foundPointsCount === 0) {
-    listWrapper.innerHTML = `<li class="traffic-item" style="font-size:12px; color:var(--text3); font-family:monospace; text-align:center; width:100%;">Yakın çevrede kilitli ana aks bulunmuyor.</li>`;
-  }
-}
+    <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg">
+        <div>
+            <span class="text-xs text-slate-400 uppercase tracking-wider block">Başlangıç Konumu Hava Durumu</span>
+            <div id="weather-info" class="text-sm font-medium mt-1">Konum alınıyor...</div>
+        </div>
+        <div class="text-right">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                <span class="h-2 w-2 rounded-full bg-green-400 mr-1.5 animate-ping"></span> Canlı GPS
+            </span>
+        </div>
+    </header>
 
-// iOS GÜVENLİ UYANIKLIK MOTORU (WAKE LOCK + VIDEO HIBRIT)
-async function requestWakeLockSecure() {
-  try {
-    if ('wakeLock' in navigator) {
-      wakeLock = await navigator.wakeLock.request('screen');
-      return;
-    }
-  } catch (err) { console.log("WakeLock API geçildi."); }
+    <main class="flex-1 flex flex-col items-center justify-center my-6 space-y-8">
+        <div class="text-center">
+            <div id="speed" class="text-8xl font-black tracking-tighter text-white drop-shadow-[0_4px_12px_rgba(255,255,255,0.1)]">0</div>
+            <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">KM/H ANLIK HIZ</div>
+        </div>
 
-  try {
-    const video = document.getElementById('ios-wake-video');
-    if (video) {
-      video.src = "data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wStandard0CHbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAAUAAAAEAAAVQAAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvbmYAAAAAcm1raAIAAAAAAAAAGG1kYXQ=";
-      video.play().catch(e => console.log("iOS Video tetiklenemedi"));
-    }
-  } catch (e) { console.log("iOS Ekran koruyucu aktif edilemedi."); }
-}
+        <div class="relative w-48 h-48 flex items-center justify-center">
+            <div id="compass" class="absolute inset-0 border-4 border-slate-700 rounded-full transition-transform duration-100 ease-out shadow-xl" style="transform: rotate(0deg);">
+                <div class="absolute top-2 left-1/2 -translate-x-1/2 font-black text-red-500 text-lg">K</div>
+                <div class="absolute bottom-2 left-1/2 -translate-x-1/2 font-black text-slate-400 text-lg">G</div>
+                <div class="absolute right-2 top-1/2 -translate-y-1/2 font-black text-slate-400 text-lg">D</div>
+                <div class="absolute left-2 top-1/2 -translate-y-1/2 font-black text-slate-400 text-lg">B</div>
+            </div>
+            <div class="z-10 bg-blue-600 p-4 rounded-full shadow-lg border-2 border-white/20">
+                <i class="fa-solid fa-location-arrow text-2xl text-white transform -rotate-45"></i>
+            </div>
+            <div id="heading-deg" class="absolute -bottom-8 text-xl font-mono font-bold text-blue-400">0°</div>
+        </div>
+    </main>
 
-function releaseWakeLockSecure() {
-  try {
-    if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
-    const video = document.getElementById('ios-wake-video');
-    if (video) { video.pause(); video.src = ""; }
-  } catch(e){}
-}
+    <footer class="space-y-3">
+        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-blue-400">
+                    <i class="fa-solid fa-road text-lg"></i>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block">GİDİLEN MESAFE</span>
+                    <span id="distance" class="text-xl font-mono font-bold">0.00 km</span>
+                </div>
+            </div>
+            <button id="reset-distance" class="text-xs bg-slate-700 active:bg-slate-600 px-3 py-2 rounded-lg transition">Sıfırla</button>
+        </div>
 
-function calculateMotionStream(e) {
-  if (currentAppFlowState === 'playing') return;
-  let acc = e.accelerationIncludingGravity || e.acceleration;
-  if (!acc) return;
-  let x = acc.x || 0; let y = acc.y || 0; let z = acc.z || 0;
-  let totalForce = Math.sqrt(x*x + y*y + z*z);
-  let gForce = totalForce / 9.80665;
-  let netG = Math.abs(gForce - 1.0);
-  
-  if (netG < 0.06) netG = 0;
-  if (netG > 3.0) netG = 3.0;
-  document.getElementById('ride-value').textContent = netG.toFixed(2);
-  
-  if (currentAppFlowState === 'recording') {
-    sessionTotalG += netG; sessionCount++;
-    if (netG > sessionMaxG) {
-      sessionMaxG = netG;
-      document.getElementById('ride-peak-label').textContent = `Tepe Noktası: ${sessionMaxG.toFixed(2)} G`;
-    }
-  }
-}
+        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 max-h-40 overflow-y-auto">
+            <div class="flex items-center justify-between mb-2 pb-2 border-b border-slate-700/50">
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center">
+                    <i class="fa-solid fa-traffic-light mr-2"></i> 5 KM Yarıçap Trafik Durumu
+                </span>
+                <span id="traffic-status" class="text-[10px] text-slate-400">Güncelleniyor...</span>
+            </div>
+            <ul id="traffic-list" class="space-y-1.5 text-xs text-slate-300">
+                <li class="text-slate-400 italic">Yol yoğunluk verileri taranıyor...</li>
+            </ul>
+        </div>
+    </footer>
 
-function handleMainButtonClick() {
-  const btn = document.getElementById('btn-ride-toggle');
+    <script>
+        // Global Değişkenler
+        let totalDistance = 0;
+        let lastCoords = null;
+        let weatherLoaded = false;
+        let lastTrafficUpdate = 0;
 
-  if (currentAppFlowState === 'ready') {
-    // iOS İzin İsteme Mekanizması (Hem Hareket hem de Yönelim İzinleri)
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      DeviceMotionEvent.requestPermission().catch(err => console.log("Sensör izni atlandı."));
-    }
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      DeviceOrientationEvent.requestPermission().then(state => {
-        if (state === 'granted') {
-          window.addEventListener('deviceorientation', handleCompassHeading, true);
+        const startBtn = document.getElementById('start-btn');
+        const permissionOverlay = document.getElementById('permission-overlay');
+        const speedEl = document.getElementById('speed');
+        const distanceEl = document.getElementById('distance');
+        const compassEl = document.getElementById('compass');
+        const headingDegEl = document.getElementById('heading-deg');
+        const weatherInfoEl = document.getElementById('weather-info');
+        const trafficListEl = document.getElementById('traffic-list');
+        const trafficStatusEl = document.getElementById('traffic-status');
+        const resetDistanceBtn = document.getElementById('reset-distance');
+
+        // Mesafe Sıfırlama
+        resetDistanceBtn.addEventListener('click', () => {
+            totalDistance = 0;
+            distanceEl.innerText = "0.00 km";
+        });
+
+        // Ana Başlatıcı Buton Akışı (iOS için zorunlu)
+        startBtn.addEventListener('click', async () => {
+            try {
+                // 1. Konum İzni İste
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(initLocationSuccess, handleLocationError, {
+                        enableHighAccuracy: true
+                    });
+                    // Sürekli takip
+                    navigator.geolocation.watchPosition(updateDrivingData, handleLocationError, {
+                        enableHighAccuracy: true
+                    });
+                } else {
+                    alert("Cihazınızda GPS desteği bulunamadı.");
+                }
+
+                // 2. iOS Sensör İzni İste (DeviceOrientation)
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
+                        window.addEventListener('deviceorientation', handleOrientation, true);
+                    } else {
+                        alert("Pusula için hareket sensörü izni reddedildi.");
+                    }
+                } else {
+                    // Android veya standart tarayıcılar
+                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                    window.addEventListener('deviceorientation', handleOrientation, true);
+                }
+
+                // Overlay ekranını kapat
+                permissionOverlay.style.display = 'none';
+
+            } catch (error) {
+                console.error("İzin alma hatası:", error);
+                permissionOverlay.style.display = 'none';
+            }
+        });
+
+        // İlk Başarılı Konum Alındığında (Hava durumu için bir kez çalışır)
+        function initLocationSuccess(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            if (!weatherLoaded) {
+                fetchWeatherData(lat, lon);
+                fetchTrafficData(lat, lon);
+                weatherLoaded = true;
+            }
         }
-      }).catch(err => console.log("Pusula izni reddedildi."));
-    }
 
-    requestWakeLockSecure();
+        // Sürüş Verilerini Güncelleme (watchPosition)
+        function updateDrivingData(position) {
+            // 1. Anlık Sürat (M/S'den KM/H'ye çevrim)
+            if (position.coords.speed !== null && position.coords.speed > 0) {
+                const kmh = Math.round(position.coords.speed * 3.6);
+                speedEl.innerText = kmh;
+            } else {
+                speedEl.innerText = "0";
+            }
 
-    currentAppFlowState = 'recording';
-    driveSessionData = []; sessionMaxG = 0; sessionTotalG = 0; sessionCount = 0; currentSpeedKmh = 0;
-    lastKnownLatLng = null;
-    rideStartTime = Date.now();
-    
-    document.getElementById('ride-feedback').style.display = 'none';
-    document.getElementById('speed-label-type').textContent = 'Mevcut Hız';
-    document.getElementById('metric-speed').style.color = 'var(--accent2)';
-    document.getElementById('ride-badge').textContent = 'CANLI TAKİP'; 
-    document.getElementById('ride-badge').className = 'card-badge badge-active';
-    
-    if (livePolyline) livePolyline.setLatLngs([]);
-    if (playbackMarker) { map.removeLayer(playbackMarker); playbackMarker = null; }
+            // 2. Mesafe Hesaplama (Haversine Formülü)
+            if (lastCoords) {
+                const distanceIncrement = calculateDistance(
+                    lastCoords.latitude, lastCoords.longitude,
+                    position.coords.latitude, position.coords.longitude
+                );
+                // GPS sapmalarını engellemek için min 2 metre hareket şartı
+                if (distanceIncrement > 0.002) { 
+                    totalDistance += distanceIncrement;
+                    distanceEl.innerText = totalDistance.toFixed(2) + " km";
+                }
+            }
+            lastCoords = position.coords;
 
-    durationTimer = setInterval(() => {
-      document.getElementById('metric-duration').textContent = formatTime(Date.now() - rideStartTime);
-    }, 1000);
-
-    heartbeatTimer = setInterval(() => {
-      if (currentAppFlowState === 'recording' && lastKnownLatLng) {
-        let currentNetG = parseFloat(document.getElementById('ride-value').textContent) || 0;
-        if (currentSpeedKmh === 0) {
-          driveSessionData.push({ lat: lastKnownLatLng.lat, lon: lastKnownLatLng.lon, speed: 0, gForce: currentNetG, timestamp: Date.now() });
+            // Periyodik trafik güncellemesi (Her 2 dakikada bir)
+            const now = Date.now();
+            if (now - lastTrafficUpdate > 120000) {
+                fetchTrafficData(position.coords.latitude, position.coords.longitude);
+            }
         }
-      }
-    }, 5000);
 
-    // GEOLOCATION WATCH (GPS Güvenli Başlatma ve Hata Yönetimi)
-    if (navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          if (currentAppFlowState !== 'recording') return;
-          
-          let lat = pos.coords.latitude;
-          let lon = pos.coords.longitude;
-          lastKnownLatLng = { lat, lon };
-          
-          // İlk GPS verisi alındığında hava durumunu hemen çalıştır, sonra 5 dk'da bir yenile
-          if (!weatherTimer) {
-            updateWeather(lat, lon);
-            weatherTimer = setInterval(() => {
-              if (lastKnownLatLng) updateWeather(lastKnownLatLng.lat, lastKnownLatLng.lon);
-            }, 300000); // 5 Dakika
-          }
-          
-          scanNearbyTrafficRadar(lat, lon);
-          
-          if (pos.coords.speed !== null && pos.coords.speed >= 0) {
-            currentSpeedKmh = Math.round(pos.coords.speed * 3.6);
-          } else if (driveSessionData.length > 0) {
-            let prev = driveSessionData[driveSessionData.length - 1];
-            let dist = computeHaversineDistance(prev.lat, prev.lon, lat, lon);
-            let timeDiffSec = (Date.now() - prev.timestamp) / 1000;
-            if (timeDiffSec > 0) currentSpeedKmh = Math.round((dist / timeDiffSec) * 3.6);
-          }
-          
-          if (driveSessionData.length > 0) {
-            let lastData = driveSessionData[driveSessionData.length - 1];
-            let checkDist = computeHaversineDistance(lastData.lat, lastData.lon, lat, lon);
-            if (checkDist > 3000 && (Date.now() - lastData.timestamp) < 15000) return; 
-          }
+        // Pusula Yön Yönetimi (iOS / Android Uyumlu)
+        function handleOrientation(event) {
+            // iOS için webkitCompassHeading, Android için alpha/absolute verisi kullanılır
+            let heading = event.webkitCompassHeading || event.alpha;
+            
+            if (event.absolute === false && event.alpha !== null) {
+                // Mutlak yön değilse düzeltme denemesi
+                heading = 360 - event.alpha; 
+            }
 
-          document.getElementById('metric-speed').textContent = `${currentSpeedKmh} km/s`;
-          let currentNetG = parseFloat(document.getElementById('ride-value').textContent) || 0;
-          
-          driveSessionData.push({ lat, lon, speed: currentSpeedKmh, gForce: currentNetG, timestamp: Date.now() });
-          
-          let currentLatLng = [lat, lon];
-          livePolyline.addLatLng(currentLatLng);
-          
-          // Harita açık/kapalı fark etmeksizin rota arka planda beslenmeye devam eder
-          if (document.getElementById("map-box").style.display === "block") {
-            map.setView(currentLatLng, 15);
-          }
-          
-          calculateTotalDistanceUI();
-        },
-        (err) => { 
-          showSystemMessage("📡 GPS Sinyali Bekleniyor / Alınamadı!"); 
-          console.warn("GPS Sinyal Hatası:", err.message); 
-        }, 
-        { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
-      );
-    } else {
-      showSystemMessage("❌ Cihazınızda GPS desteği bulunamadı.");
-    }
+            if (heading !== undefined && heading !== null) {
+                const roundedHeading = Math.round(heading);
+                headingDegEl.innerText = `${roundedHeading}°`;
+                
+                // Arayüz pusulasını gelen açının tersine döndürerek kuzeyi yukarıda sabit tutuyoruz
+                compassEl.style.transform = `rotate(${-roundedHeading}deg)`;
+            }
+        }
 
-    btn.textContent = 'Sürüşü Bitir ve Raporla'; 
-    btn.className = 'ride-btn btn-stop';
-  } 
-  else if (currentAppFlowState === 'recording') {
-    currentAppFlowState = 'summary';
-    
-    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-    if (durationTimer) { clearInterval(durationTimer); durationTimer = null; }
-    if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-    if (weatherTimer) { clearInterval(weatherTimer); weatherTimer = null; }
-    releaseWakeLockSecure();
-    
-    document.getElementById('ride-badge').textContent = 'BİTTİ'; 
-    document.getElementById('ride-badge').className = 'card-badge badge-warn';
-    
-    if (driveSessionData.length < 2) injectMockupRouteForTesting();
+        // Hava Durumu Verisi Çekme (Açık ve Ücretsiz 7-Timer API - Key Gerektirmez)
+        function fetchWeatherData(lat, lon) {
+            const url = `https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.dataseries && data.dataseries.length > 0) {
+                        const current = data.dataseries[0];
+                        // Basit hava durumu eşleştirmesi
+                        let cond = "Açık";
+                        if (current.cloudcover > 3) cond = "Parçalı Bulutlu";
+                        if (current.cloudcover > 6) cond = "Bulutlu";
+                        if (current.prec_type !== "none") cond = "Yağış İhtimali";
+                        
+                        weatherInfoEl.innerText = `${cond}, Sıcaklık Endeksi: ${current.temp2m}°C`;
+                    }
+                })
+                .catch(() => {
+                    weatherInfoEl.innerText = "Hava durumu şu an alınamadı.";
+                });
+        }
 
-    buildRideComfortReport();
+        // 5 KM Yarıçap Trafik Verisi Çekme (OpenStreetMap Overpass API - Key Gerektirmez)
+        function fetchTrafficData(lat, lon) {
+            trafficStatusEl.innerText = "Taranıyor...";
+            
+            // Mevcut konumun 5000m (5km) çevresindeki "traffic_signals", "crossing" veya yoğunluk belirtebilecek yolları sorgular.
+            const query = `[out:json][timeout:15];
+                (
+                  node["highway"="traffic_signals"](around:5000, ${lat}, ${lon});
+                  way["highway"~"motorway|trunk|primary"]["lit" cosmology](around:5000, ${lat}, ${lon});
+                );
+                out body 5;`; // İlk 5 yoğun noktayı listeler
+                
+            const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
-    btn.textContent = '▶ Sürüş Güzergahını Tekrar Oynat'; 
-    btn.className = 'ride-btn btn-play';
-  } 
-  else if (currentAppFlowState === 'summary') {
-    currentAppFlowState = 'playing';
-    btn.textContent = '🔄 Sistemi Yeniden Başlat'; 
-    btn.className = 'ride-btn btn-start';
-    
-    // Oynatma modunda harita kapalıysa otomatik görünür yap
-    const mapBox = document.getElementById("map-box");
-    if (mapBox.style.display === "none" || mapBox.style.display === "") {
-      toggleMapVisibility();
-    }
-    
-    startLeafletAnimatedPlayback();
-  }
-  else if (currentAppFlowState === 'playing') {
-    restartApp();
-  }
-}
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    lastTrafficUpdate = Date.now();
+                    trafficListEl.innerHTML = "";
+                    trafficStatusEl.innerText = "Güncel";
 
-function buildRideComfortReport() {
-  const feedbackBox = document.getElementById('ride-feedback');
-  const scoreEl = document.getElementById('feedback-score');
-  const textEl = document.getElementById('feedback-text');
-  
-  let avgG = sessionCount > 0 ? (sessionTotalG / sessionCount) : 0.02;
-  let comfortScore = 100 - (avgG * 150) - (sessionMaxG * 30);
-  comfortScore = Math.max(5, Math.min(100, Math.round(comfortScore)));
+                    if (data && data.elements && data.elements.length > 0) {
+                        let count = 0;
+                        data.elements.forEach(el => {
+                            if (count >= 4) return; // Ekranı taşmasın diye max 4 adet yazdırıyoruz
+                            const name = el.tags.name || el.tags.ref || "Bağlantı Yolu / Kavşak";
+                            const type = el.tags.highway === "traffic_signals" ? "Sinyalizasyon Yoğunluğu" : "Ana Yol Akışı";
+                            
+                            const li = document.createElement('li');
+                            li.className = "flex items-center justify-between bg-slate-700/30 p-2 rounded-lg border border-slate-700/30";
+                            li.innerHTML = `
+                                <span><i class="fa-solid fa-location-dot text-amber-500 mr-2"></i><strong>${name}</strong></span>
+                                <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">${type}</span>
+                            `;
+                            trafficListEl.appendChild(li);
+                            count++;
+                        });
+                    } else {
+                        trafficListEl.innerHTML = `<li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>5 km alanında kritik trafik yoğunluğu tespit edilmedi.</li>`;
+                    }
+                })
+                .catch(() => {
+                    trafficStatusEl.innerText = "Hata";
+                    trafficListEl.innerHTML = `<li class="text-slate-500">Trafik verisi şu an güncellenemedi.</li>`;
+                });
+        }
 
-  scoreEl.textContent = `%${comfortScore}`;
-  feedbackBox.style.display = 'block';
-  
-  let distanceStr = document.getElementById('metric-distance').textContent;
-  let durationStr = document.getElementById('metric-duration').textContent;
-  textEl.textContent = `Mesafe: ${distanceStr} | Süre: ${durationStr} | Skor: %${comfortScore}. Grafikler haritada sabitlendi.`;
-}
+        // İki Konum Arasındaki Mesafeyi Hesaplayan Haversine Formülü (KM cinsinden)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Dünyanın yarıçapı
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
 
-let playbackIdx = 0;
-let playbackTimer = null;
-
-function startLeafletAnimatedPlayback() {
-  if (driveSessionData.length === 0) return;
-  playbackIdx = 0;
-  document.getElementById('panel-label').textContent = 'GÜZERGAH TEKRARI';
-  
-  if (livePolyline) livePolyline.setLatLngs([]);
-  let startPt = driveSessionData[0];
-  playbackMarker = L.marker([startPt.lat, startPt.lon]).addTo(map);
-
-  if (playbackTimer) clearInterval(playbackTimer);
-  
-  playbackTimer = setInterval(() => {
-    if (playbackIdx >= driveSessionData.length) {
-      clearInterval(playbackTimer);
-      document.getElementById('panel-label').textContent = 'TEKRAR BİTTİ';
-      return;
-    }
-    let currentPoint = driveSessionData[playbackIdx];
-    let pt = [currentPoint.lat, currentPoint.lon];
-    
-    playbackMarker.setLatLng(pt);
-    livePolyline.addLatLng(pt);
-    map.setView(pt, 15);
-    
-    document.getElementById('ride-value').textContent = currentPoint.gForce.toFixed(2);
-    document.getElementById('metric-speed').textContent = `${currentPoint.speed} km/s`;
-    playbackIdx++;
-  }, 120);
-}
-
-function computeHaversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3;
-  const phi1 = lat1 * Math.PI / 180; const phi2 = lat2 * Math.PI / 180;
-  const dPhi = (lat2 - lat1) * Math.PI / 180; const dLam = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam/2) * Math.sin(dLam/2);
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-}
-
-function calculateTotalDistanceUI() {
-  if (driveSessionData.length < 2) return;
-  let total = 0;
-  for(let i=1; i<driveSessionData.length; i++) {
-    total += computeHaversineDistance(driveSessionData[i-1].lat, driveSessionData[i-1].lon, driveSessionData[i].lat, driveSessionData[i].lon);
-  }
-  document.getElementById('metric-distance').textContent = total >= 1000 ? `${(total/1000).toFixed(2)} km` : `${Math.round(total)} m`;
-}
-
-function formatTime(ms) {
-  let totalSecs = Math.floor(ms / 1000);
-  let hrs = Math.floor(totalSecs / 3600);
-  let mins = Math.floor((totalSecs % 3600) / 60);
-  let secs = totalSecs % 60;
-  return `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-}
-
-function injectMockupRouteForTesting() {
-  let startCenter = map.getCenter();
-  let startLat = startCenter.lat; let startLon = startCenter.lng;
-  driveSessionData = [];
-  for (let i = 0; i < 35; i++) {
-    let lat = startLat + (i * 0.00013); let lon = startLon + (Math.sin(i * 0.4) * 0.00008);
-    let speed = Math.round(35 + Math.sin(i) * 12);
-    let mockG = i % 8 === 0 ? 0.65 : 0.02;
-    driveSessionData.push({ lat, lon, speed, gForce: mockG, timestamp: Date.now() });
-    if (livePolyline) livePolyline.setLatLngs([]);
-    sessionTotalG += mockG; sessionCount++;
-    if (mockG > sessionMaxG) sessionMaxG = mockG;
-  }
-  document.getElementById('ride-peak-label').textContent = `Tepe Noktası: ${sessionMaxG.toFixed(2)} G`;
-  scanNearbyTrafficRadar(startLat, startLon);
-  
-  // Test rotası için de hava durumunu tetikle
-  updateWeather(startLat, startLon);
-}
-
-function restartApp() {
-  currentAppFlowState = 'ready';
-  if (playbackTimer) clearInterval(playbackTimer);
-  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-  if (durationTimer) { clearInterval(durationTimer); durationTimer = null; }
-  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-  if (weatherTimer) { clearInterval(weatherTimer); weatherTimer = null; }
-  releaseWakeLockSecure();
-  
-  if (playbackMarker) { map.removeLayer(playbackMarker); playbackMarker = null; }
-  if (radarCircleLayer) { map.removeLayer(radarCircleLayer); radarCircleLayer = null; }
-  if (livePolyline) livePolyline.setLatLngs([]);
-  
-  document.getElementById('radar-panel').style.display = 'none';
-  document.getElementById('ride-feedback').style.display = 'none';
-  document.getElementById('weather-panel').style.display = 'none';
-  document.getElementById('system-msg-box').style.display = 'none';
-  document.getElementById('panel-label').textContent = 'Anlık Telemetri';
-  document.getElementById('metric-speed').textContent = '0 km/s';
-  document.getElementById('ride-badge').textContent = 'Hazır';
-  document.getElementById('ride-badge').className = 'card-badge badge-warn';
-  
-  // Haritayı kapat ve buton metnini güncelle
-  const mapBox = document.getElementById("map-box");
-  mapBox.classList.remove("show");
-  mapBox.style.display = "none";
-  document.getElementById("btn-map").innerText = "🗺 Haritayı Göster";
-  
-  const mainBtn = document.getElementById('btn-ride-toggle');
-  mainBtn.textContent = 'Sürüşü Başlat';
-  mainBtn.className = 'ride-btn btn-start';
-
-  document.getElementById('ride-peak-label').textContent = `Tepe Noktası: 0.00 G`;
-  document.getElementById('ride-value').textContent = '0.00';
-  document.getElementById('heading-value').textContent = '--° (N)';
-  document.getElementById('metric-distance').textContent = '0 m';
-  document.getElementById('metric-duration').textContent = '00:00:00';
-}
-</script>
+        // Hata Yönetimleri
+        function handleLocationError(error) {
+            console.error("GPS Hatası:", error);
+            if (error.code === 1) {
+                alert("Lütfen cihaz ayarlarından tarayıcınıza konum izni verin.");
+            }
+        }
+    </script>
 </body>
 </html>
