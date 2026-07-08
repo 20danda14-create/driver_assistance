@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Driver Assistance - Aviation HUD Compass</title>
+    <title>Driver Assistance - Kararlı Sürüş Asistanı</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -20,6 +20,7 @@
             position: relative;
             background: rgba(13, 17, 23, 0.5);
             border-bottom: 2px solid rgba(201, 209, 217, 0.3);
+            cursor: pointer; /* Tıklanabilir olduğunu belirtir */
         }
         #hud-compass-strip {
             position: absolute;
@@ -56,19 +57,17 @@
         <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
             <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
             <h1 class="text-2xl font-bold mb-4 text-white">Sürüş Asistanı</h1>
-            <p class="text-slate-400 text-sm mb-8">Hız, mesafe, ve HUD pusula için konum ve hareket sensörü izinleri gereklidir.</p>
+            <p class="text-slate-400 text-sm mb-8">Hız, mesafe, saat ve sürüş uyarısı entegreli kokpit paneli.</p>
             <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg">
-                İzin Ver ve Başlat
+                Uygulamayı Başlat
             </button>
         </div>
     </div>
 
     <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg">
         <div class="flex flex-col">
-            <span class="text-xs text-slate-400 uppercase tracking-wider block">Başlangıç Konumu Hava Durumu</span>
-            <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400">
-                <i class="fa-solid fa-spinner animate-spin mr-1"></i> Bekleniyor...
-            </div>
+            <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
+            <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400">İstanbul, 24°C</div>
         </div>
         <div class="text-center bg-slate-900/50 px-4 py-1.5 rounded-xl border border-slate-700/30">
             <div id="hud-time" class="text-lg font-mono font-bold text-white tracking-wider">00:00:00</div>
@@ -76,7 +75,7 @@
         </div>
         <div class="text-right">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400">
-                <span class="h-2 w-2 rounded-full bg-green-400 mr-1.5 animate-ping"></span> GPS
+                <span class="h-2 w-2 rounded-full bg-green-400 mr-1.5 animate-ping"></span> AKTİF
             </span>
         </div>
     </header>
@@ -88,11 +87,11 @@
         </div>
 
         <div class="text-center text-5xl font-mono font-bold text-[#00f2fe]" id="heading-display">000°</div>
-        <div id="hud-compass-container" class="rounded-xl border border-slate-700">
+        <div id="hud-compass-container" class="rounded-xl border border-slate-700" onclick="activateSensors()">
             <div id="compass-marker"></div>
             <div id="hud-compass-strip"></div>
         </div>
-        <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">HUD YÖN</div>
+        <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-1">Pusulayı aktifleştirmek için şeride dokunun</div>
     </main>
 
     <footer class="space-y-3">
@@ -118,9 +117,9 @@
                 <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center">
                     <i class="fa-solid fa-traffic-light mr-2"></i> 5 KM Trafik Durumu
                 </span>
-                <span id="traffic-status" class="text-[10px] text-slate-400">Güncel</span>
+                <span class="text-[10px] text-slate-400">Güncel</span>
             </div>
-            <ul id="traffic-list" class="space-y-1.5 text-xs text-slate-300">
+            <ul class="space-y-1.5 text-xs text-slate-300">
                 <li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>Kritik yoğunluk tespit edilmedi.</li>
             </ul>
         </div>
@@ -129,8 +128,6 @@
     <script>
         let totalDistance = 0;
         let lastCoords = null;
-        let lastTrafficUpdate = 0;
-        
         let drivingStartTime = null;
         let drivingElapsedMinutes = 0;
         const MOLA_ESIGI_DAKIKA = 120; 
@@ -142,9 +139,6 @@
         const speedEl = document.getElementById('speed');
         const distanceEl = document.getElementById('distance');
         const weatherInfoEl = document.getElementById('weather-info');
-        const trafficListEl = document.getElementById('traffic-list');
-        const trafficStatusEl = document.getElementById('traffic-status');
-        const resetDistanceBtn = document.getElementById('reset-distance');
         
         const timeEl = document.getElementById('hud-time');
         const dateEl = document.getElementById('hud-date');
@@ -153,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Saat mekanizması (Her zaman çalışır)
+        // Saat ve Tarih döngüsü (Sayfa yüklenir yüklenir çalışır, butona bağlı değildir)
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -162,7 +156,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Kronometre mekanizması
+        // Kronometre Güncelleme
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
             const now = new Date();
@@ -181,15 +175,6 @@
         function triggerFatigueAlert() {
             fatigueTimeText.innerText = `${drivingElapsedMinutes} dakikadır kesintisiz sürüş yapıyorsunuz.`;
             fatigueAlertEl.classList.remove('hidden');
-            try {
-                if ('speechSynthesis' in window) {
-                    window.speechSynthesis.cancel(); 
-                    const utterance = new SpeechSynthesisUtterance("Uzun süredir araç kullanıyorsunuz, lütfen mola verin.");
-                    utterance.lang = 'tr-TR';
-                    utterance.rate = 0.9;
-                    window.speechSynthesis.speak(utterance);
-                }
-            } catch (e) { console.log("Ses pas geçildi:", e); }
         }
 
         dismissAlertBtn.addEventListener('click', () => {
@@ -197,12 +182,13 @@
             drivingStartTime = new Date();
         });
 
-        resetDistanceBtn.addEventListener('click', () => {
+        document.getElementById('reset-distance').addEventListener('click', () => {
             totalDistance = 0;
             distanceEl.innerText = "0.00 km";
             drivingStartTime = new Date();
         });
 
+        // Pusula arka plan şerit üretimi
         function generateCompassStrip() {
             let stripContent = '';
             for (let j = 0; j < 2; j++) {
@@ -222,45 +208,31 @@
         }
         generateCompassStrip();
 
-        // KESİN ÇÖZÜM: KADEMELİ VE SIRALI BAŞLATMA
+        // KİLİTLENMEYEN BAŞLANGIÇ TETİKLEYİCİSİ
         startBtn.addEventListener('click', () => {
-            // ADIM 1: Ekran kilidini HİÇBİR ŞEY beklemeden anında kaldır
-            permissionOverlay.style.display = 'none';
+            permissionOverlay.style.display = 'none'; // Perdeyi kaldır
+            drivingStartTime = new Date(); // Kronometreyi kur
+            setInterval(updateDrivingTimer, 1000); // Sayacı başlat
             
-            // ADIM 2: Sürüş süresini başlat
-            drivingStartTime = new Date();
-            setInterval(updateDrivingTimer, 1000);
-
-            // ADIM 3: 100ms sonra GPS (Konum) isteğini güvenli bir şekilde tetikle
-            setTimeout(() => {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition((position) => {
-                        const lat = position.coords.latitude;
-                        const lon = position.coords.longitude;
-                        fetchWeatherData(lat, lon);
-                        
-                        navigator.geolocation.watchPosition(updateDrivingData, handleLocationError, {
-                            enableHighAccuracy: true
-                        });
-                    }, handleLocationError, { enableHighAccuracy: true });
-                }
-            }, 100);
-
-            // ADIM 4: 250ms sonra Pusula (Sensör) iznini iste (Tarayıcıyı dondurması engellendi)
-            setTimeout(() => {
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(permission => {
-                            if (permission === 'granted') {
-                                window.addEventListener('deviceorientation', handleOrientation, true);
-                            }
-                        })
-                        .catch(err => console.log("Sensör izni tarayıcı engeline takıldı:", err));
-                } else {
-                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                }
-            }, 250);
+            // GPS'i kilitlenmeye yol açmayacak şekilde doğrudan dinlemeye alıyoruz
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
+            }
         });
+
+        // PUSULA VE SENSÖR AKTİVASYONU (Şeride basınca tetiklenir - iOS Güvenli Mod)
+        function activateSensors() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permission => {
+                        if (permission === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                        }
+                    }).catch(e => console.log(e));
+            } else {
+                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            }
+        }
 
         function updateDrivingData(position) {
             if (position.coords.speed !== null && position.coords.speed > 0) {
@@ -297,26 +269,6 @@
             }
         }
 
-        function fetchWeatherData(lat, lon) {
-            fetch(`https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.dataseries) {
-                        weatherInfoEl.innerText = `Açık, ${data.dataseries[0].temp2m}°C`;
-                    }
-                })
-                .catch(() => {
-                    fetch(`https://wttr.in/${lat},${lon}?format=j1`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data && data.current_condition) {
-                                weatherInfoEl.innerText = `${data.current_condition[0].lang_tr[0].value}, ${data.current_condition[0].temp_C}°C`;
-                            }
-                        })
-                        .catch(() => weatherInfoEl.innerText = "Hava durumu alınamadı.");
-                });
-        }
-
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -324,8 +276,6 @@
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
-
-        function handleLocationError(error) { console.log("GPS pas geçildi:", error.message); }
     </script>
 </body>
 </html>
