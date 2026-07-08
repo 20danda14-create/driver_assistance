@@ -46,7 +46,7 @@
         </div>
 
         <div class="relative w-48 h-48 flex items-center justify-center">
-            <div id="compass" class="absolute inset-0 border-4 border-slate-700 rounded-full transition-transform duration-100 ease-out shadow-xl" style="transform: rotate(0deg);">
+            <div id="compass" class="absolute inset-0 border-4 border-slate-700 rounded-full transition-transform duration-75 ease-out shadow-xl" style="transform: rotate(0deg);">
                 <div class="absolute top-2 left-1/2 -translate-x-1/2 font-black text-red-500 text-lg">K</div>
                 <div class="absolute bottom-2 left-1/2 -translate-x-1/2 font-black text-slate-400 text-lg">G</div>
                 <div class="absolute right-2 top-1/2 -translate-y-1/2 font-black text-slate-400 text-lg">D</div>
@@ -78,19 +78,17 @@
                 <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center">
                     <i class="fa-solid fa-traffic-light mr-2"></i> 5 KM Yarıçap Trafik Durumu
                 </span>
-                <span id="traffic-status" class="text-[10px] text-slate-400">Güncelleniyor...</span>
+                <span id="traffic-status" class="text-[10px] text-slate-400">Başlatılıyor...</span>
             </div>
             <ul id="traffic-list" class="space-y-1.5 text-xs text-slate-300">
-                <li class="text-slate-400 italic">Yol yoğunluk verileri taranıyor...</li>
+                <li class="text-slate-400 italic">Konum onayından sonra veriler yüklenecek...</li>
             </ul>
         </div>
     </footer>
 
     <script>
-        // Global Değişkenler
         let totalDistance = 0;
         let lastCoords = null;
-        let weatherLoaded = false;
         let lastTrafficUpdate = 0;
 
         const startBtn = document.getElementById('start-btn');
@@ -104,66 +102,54 @@
         const trafficStatusEl = document.getElementById('traffic-status');
         const resetDistanceBtn = document.getElementById('reset-distance');
 
-        // Mesafe Sıfırlama
         resetDistanceBtn.addEventListener('click', () => {
             totalDistance = 0;
             distanceEl.innerText = "0.00 km";
         });
 
-        // Ana Başlatıcı Buton Akışı (iOS için zorunlu)
+        // Kullanıcı butona bastığı an tetiklenen güvenli akış
         startBtn.addEventListener('click', async () => {
-            try {
-                // 1. Konum İzni İste
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(initLocationSuccess, handleLocationError, {
-                        enableHighAccuracy: true
-                    });
-                    // Sürekli takip
+            // 1. GPS İzin ve İlk Veri Çekme Tetiklemesi
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    // Kullanıcı izni verdiği an İLK verileri hemen çekiyoruz (Açılış gecikmesini önler)
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    fetchWeatherData(lat, lon);
+                    fetchTrafficData(lat, lon);
+                    
+                    // Sürekli izleme başlat
                     navigator.geolocation.watchPosition(updateDrivingData, handleLocationError, {
                         enableHighAccuracy: true
                     });
-                } else {
-                    alert("Cihazınızda GPS desteği bulunamadı.");
-                }
+                }, handleLocationError, { enableHighAccuracy: true });
+            } else {
+                alert("Cihazınızda GPS desteği bulunamadı.");
+            }
 
-                // 2. iOS Sensör İzni İste (DeviceOrientation)
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // 2. iOS Sensör İzni ve Net Pusula Ayarı
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
                     const permission = await DeviceOrientationEvent.requestPermission();
                     if (permission === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation, true);
                     } else {
                         alert("Pusula için hareket sensörü izni reddedildi.");
                     }
-                } else {
-                    // Android veya standart tarayıcılar
-                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                    window.addEventListener('deviceorientation', handleOrientation, true);
+                } catch (err) {
+                    console.error("Sensör izin hatası:", err);
                 }
-
-                // Overlay ekranını kapat
-                permissionOverlay.style.display = 'none';
-
-            } catch (error) {
-                console.error("İzin alma hatası:", error);
-                permissionOverlay.style.display = 'none';
+            } else {
+                // Android cihazlar için yedek kanca
+                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             }
+
+            // Overlay ekranını kapat
+            permissionOverlay.style.display = 'none';
         });
 
-        // İlk Başarılı Konum Alındığında (Hava durumu için bir kez çalışır)
-        function initLocationSuccess(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            
-            if (!weatherLoaded) {
-                fetchWeatherData(lat, lon);
-                fetchTrafficData(lat, lon);
-                weatherLoaded = true;
-            }
-        }
-
-        // Sürüş Verilerini Güncelleme (watchPosition)
         function updateDrivingData(position) {
-            // 1. Anlık Sürat (M/S'den KM/H'ye çevrim)
+            // Sürat hesaplama
             if (position.coords.speed !== null && position.coords.speed > 0) {
                 const kmh = Math.round(position.coords.speed * 3.6);
                 speedEl.innerText = kmh;
@@ -171,13 +157,12 @@
                 speedEl.innerText = "0";
             }
 
-            // 2. Mesafe Hesaplama (Haversine Formülü)
+            // Mesafe hesaplama
             if (lastCoords) {
                 const distanceIncrement = calculateDistance(
                     lastCoords.latitude, lastCoords.longitude,
                     position.coords.latitude, position.coords.longitude
                 );
-                // GPS sapmalarını engellemek için min 2 metre hareket şartı
                 if (distanceIncrement > 0.002) { 
                     totalDistance += distanceIncrement;
                     distanceEl.innerText = totalDistance.toFixed(2) + " km";
@@ -185,66 +170,61 @@
             }
             lastCoords = position.coords;
 
-            // Periyodik trafik güncellemesi (Her 2 dakikada bir)
+            // Her 2 dakikada bir otomatik trafik tazeleme
             const now = Date.now();
             if (now - lastTrafficUpdate > 120000) {
                 fetchTrafficData(position.coords.latitude, position.coords.longitude);
             }
         }
 
-        // Pusula Yön Yönetimi (iOS / Android Uyumlu)
+        // iPhone 14 Pusula Kalibrasyonlu Yön Fonksiyonu
         function handleOrientation(event) {
-            // iOS için webkitCompassHeading, Android için alpha/absolute verisi kullanılır
-            let heading = event.webkitCompassHeading || event.alpha;
-            
-            if (event.absolute === false && event.alpha !== null) {
-                // Mutlak yön değilse düzeltme denemesi
-                heading = 360 - event.alpha; 
+            let heading = null;
+
+            // iOS için en kararlı ve gerçek pusula değeri webkitCompassHeading'dir
+            if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+                heading = event.webkitCompassHeading;
+            } else if (event.alpha !== null) {
+                // Android fallback mekanizması
+                heading = event.absolute ? event.alpha : 360 - event.alpha;
             }
 
-            if (heading !== undefined && heading !== null) {
+            if (heading !== null) {
                 const roundedHeading = Math.round(heading);
                 headingDegEl.innerText = `${roundedHeading}°`;
                 
-                // Arayüz pusulasını gelen açının tersine döndürerek kuzeyi yukarıda sabit tutuyoruz
+                // iPhone dikey tutulduğunda sapmayı önlemek için rotasyonu ters açı ile senkronize ediyoruz
                 compassEl.style.transform = `rotate(${-roundedHeading}deg)`;
             }
         }
 
-        // Hava Durumu Verisi Çekme (Açık ve Ücretsiz 7-Timer API - Key Gerektirmez)
         function fetchWeatherData(lat, lon) {
             const url = `https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`;
-            
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     if (data && data.dataseries && data.dataseries.length > 0) {
                         const current = data.dataseries[0];
-                        // Basit hava durumu eşleştirmesi
                         let cond = "Açık";
                         if (current.cloudcover > 3) cond = "Parçalı Bulutlu";
                         if (current.cloudcover > 6) cond = "Bulutlu";
                         if (current.prec_type !== "none") cond = "Yağış İhtimali";
-                        
-                        weatherInfoEl.innerText = `${cond}, Sıcaklık Endeksi: ${current.temp2m}°C`;
+                        weatherInfoEl.innerText = `${cond}, ${current.temp2m}°C`;
                     }
                 })
-                .catch(() => {
-                    weatherInfoEl.innerText = "Hava durumu şu an alınamadı.";
-                });
+                .catch(() => { weatherInfoEl.innerText = "Hava durumu alınamadı."; });
         }
 
-        // 5 KM Yarıçap Trafik Verisi Çekme (OpenStreetMap Overpass API - Key Gerektirmez)
         function fetchTrafficData(lat, lon) {
-            trafficStatusEl.innerText = "Taranıyor...";
+            trafficStatusEl.innerText = "Güncelleniyor...";
             
-            // Mevcut konumun 5000m (5km) çevresindeki "traffic_signals", "crossing" veya yoğunluk belirtebilecek yolları sorgular.
+            // Konumun 5km çevresindeki sinyalizasyon ve ana arter tıkanıklık olasılıklarını çeker
             const query = `[out:json][timeout:15];
                 (
                   node["highway"="traffic_signals"](around:5000, ${lat}, ${lon});
-                  way["highway"~"motorway|trunk|primary"]["lit" cosmology](around:5000, ${lat}, ${lon});
+                  way["highway"~"motorway|trunk|primary"](around:5000, ${lat}, ${lon});
                 );
-                out body 5;`; // İlk 5 yoğun noktayı listeler
+                out body 4;`;
                 
             const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -256,11 +236,9 @@
                     trafficStatusEl.innerText = "Güncel";
 
                     if (data && data.elements && data.elements.length > 0) {
-                        let count = 0;
                         data.elements.forEach(el => {
-                            if (count >= 4) return; // Ekranı taşmasın diye max 4 adet yazdırıyoruz
-                            const name = el.tags.name || el.tags.ref || "Bağlantı Yolu / Kavşak";
-                            const type = el.tags.highway === "traffic_signals" ? "Sinyalizasyon Yoğunluğu" : "Ana Yol Akışı";
+                            const name = el.tags.name || el.tags.ref || "Bağlantı Yolu / Ana Arter";
+                            const type = el.tags.highway === "traffic_signals" ? "Kavşak/Işık Yoğunluğu" : "Ana Yol Akışı";
                             
                             const li = document.createElement('li');
                             li.className = "flex items-center justify-between bg-slate-700/30 p-2 rounded-lg border border-slate-700/30";
@@ -269,10 +247,9 @@
                                 <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">${type}</span>
                             `;
                             trafficListEl.appendChild(li);
-                            count++;
                         });
                     } else {
-                        trafficListEl.innerHTML = `<li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>5 km alanında kritik trafik yoğunluğu tespit edilmedi.</li>`;
+                        trafficListEl.innerHTML = `<li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>5 km yarıçapta yoğun yol trafiği bildirilmedi.</li>`;
                     }
                 })
                 .catch(() => {
@@ -281,24 +258,17 @@
                 });
         }
 
-        // İki Konum Arasındaki Mesafeyi Hesaplayan Haversine Formülü (KM cinsinden)
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Dünyanın yarıçapı
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
-        // Hata Yönetimleri
         function handleLocationError(error) {
             console.error("GPS Hatası:", error);
-            if (error.code === 1) {
-                alert("Lütfen cihaz ayarlarından tarayıcınıza konum izni verin.");
-            }
         }
     </script>
 </body>
