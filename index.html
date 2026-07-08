@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Driver Assistance - HUD Compass</title>
+    <title>Driver Assistance - Aviation HUD Compass</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -11,27 +11,24 @@
             background-color: #0d1117;
             color: #c9d1d9;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            overflow: hidden; /* Prevent scrolling during driving */
+            overflow: hidden;
         }
-        /* Style for the HUD compass container to contain the sliding effect */
         #hud-compass-container {
             width: 80%;
-            height: 6rem; /* Adjust based on your visual reference */
+            height: 6rem;
             overflow: hidden;
             position: relative;
-            background: rgba(13, 17, 23, 0.5); /* Semi-transparent background */
-            border-bottom: 2px solid rgba(201, 209, 217, 0.3); /* Reference line */
+            background: rgba(13, 17, 23, 0.5);
+            border-bottom: 2px solid rgba(201, 209, 217, 0.3);
         }
-        /* Style for the sliding compass strip */
         #hud-compass-strip {
             position: absolute;
             height: 100%;
             white-space: nowrap;
-            transition: transform 0.1s linear; /* Smooth sliding */
-            font-family: 'Courier New', Courier, monospace; /* Monospaced for uniform width */
-            color: #00f2fe; /* Aviation HUD cyan */
+            transition: transform 0.1s linear;
+            font-family: 'Courier New', Courier, monospace;
+            color: #00f2fe;
         }
-        /* Custom styling for the center marker */
         #compass-marker {
             position: absolute;
             top: 0;
@@ -39,12 +36,21 @@
             transform: translateX(-50%);
             width: 4px;
             height: 100%;
-            background-color: #ff9f43; /* Amber accent */
+            background-color: #ff9f43;
             z-index: 10;
         }
     </style>
 </head>
 <body class="h-screen flex flex-col justify-between p-4 select-none">
+
+    <div id="fatigue-alert" class="hidden fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-6 text-center border-4 border-amber-500 animate-pulse">
+        <i class="fa-solid fa-triangle-exclamation text-8xl text-amber-500 mb-6"></i>
+        <h1 class="text-4xl font-black text-white tracking-wide mb-2">MOLA VERİN!</h1>
+        <p id="fatigue-time-text" class="text-xl text-slate-300 mb-8">00 dakikadır kesintisiz sürüş yapıyorsunuz.</p>
+        <button id="dismiss-alert-btn" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-lg py-4 px-10 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg">
+            Mola Verdim / Sayacı Sıfırla
+        </button>
+    </div>
 
     <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center">
         <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
@@ -58,11 +64,15 @@
     </div>
 
     <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg">
-        <div>
-            <span class="text-xs text-slate-400 uppercase tracking-wider block">Mevcut Konum Hava Durumu</span>
+        <div class="flex flex-col">
+            <span class="text-xs text-slate-400 uppercase tracking-wider block">Başlangıç Konumu Hava Durumu</span>
             <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400">
                 <i class="fa-solid fa-spinner animate-spin mr-1"></i> Bekleniyor...
             </div>
+        </div>
+        <div class="text-center bg-slate-900/50 px-4 py-1.5 rounded-xl border border-slate-700/30">
+            <div id="hud-time" class="text-lg font-mono font-bold text-white tracking-wider">00:00:00</div>
+            <div id="hud-date" class="text-[10px] text-slate-400 font-medium uppercase tracking-widest">01 OCAK 2026</div>
         </div>
         <div class="text-right">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400">
@@ -78,11 +88,10 @@
             <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">KM/H ANLIK HIZ</div>
         </div>
 
-        <div class="text-center text-5xl font-mono font-bold text-[#00f2fe]" id="heading-display">172°</div>
+        <div class="text-center text-5xl font-mono font-bold text-[#00f2fe]" id="heading-display">000°</div>
         <div id="hud-compass-container" class="rounded-xl border border-slate-700">
             <div id="compass-marker"></div>
-            <div id="hud-compass-strip">
-                </div>
+            <div id="hud-compass-strip"></div>
         </div>
         <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">HUD YÖN</div>
 
@@ -95,8 +104,12 @@
                     <i class="fa-solid fa-road text-lg"></i>
                 </div>
                 <div>
-                    <span class="text-xs text-slate-400 block">GİDİLEN MESAFE</span>
-                    <span id="distance" class="text-xl font-mono font-bold text-white">0.00 km</span>
+                    <span class="text-xs text-slate-400 block">GİDİLEN MESAFE / SÜRE</span>
+                    <div class="flex items-baseline space-x-2">
+                        <span id="distance" class="text-xl font-mono font-bold text-white">0.00 km</span>
+                        <span class="text-slate-500 text-sm">|</span>
+                        <span id="driving-duration" class="text-sm font-mono text-amber-400">00:00</span>
+                    </div>
                 </div>
             </div>
             <button id="reset-distance" class="text-xs bg-slate-700 active:bg-slate-600 px-3 py-2 rounded-lg text-white">Sıfırla</button>
@@ -119,10 +132,14 @@
         let totalDistance = 0;
         let lastCoords = null;
         let lastTrafficUpdate = 0;
+        
+        // YENİ: Sürüş Süresi ve Yorgunluk Takip Değişkenleri
+        let drivingStartTime = null;
+        let drivingElapsedMinutes = 0;
+        const MOLA_ESIGI_DAKIKA = 120; // 2 Saat (Test etmek için geçici olarak 1 yapabilirsin)
+
         const hudCompassStrip = document.getElementById('hud-compass-strip');
         const headingDisplay = document.getElementById('heading-display');
-
-        // Retain original functionality
         const startBtn = document.getElementById('start-btn');
         const permissionOverlay = document.getElementById('permission-overlay');
         const speedEl = document.getElementById('speed');
@@ -131,17 +148,77 @@
         const trafficListEl = document.getElementById('traffic-list');
         const trafficStatusEl = document.getElementById('traffic-status');
         const resetDistanceBtn = document.getElementById('reset-distance');
+        
+        // Yeni Elementler
+        const timeEl = document.getElementById('hud-time');
+        const dateEl = document.getElementById('hud-date');
+        const drivingDurationEl = document.getElementById('driving-duration');
+        const fatigueAlertEl = document.getElementById('fatigue-alert');
+        const fatigueTimeText = document.getElementById('fatigue-time-text');
+        const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
+
+        // Canlı Saat ve Tarih Güncelleme Fonksiyonu
+        function updateClock() {
+            const now = new Date();
+            timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
+            
+            const options = { day: 'numeric', month: 'LONG', year: 'numeric' };
+            dateEl.innerText = now.toLocaleDateString('tr-TR', options);
+        }
+        setInterval(updateClock, 1000);
+        updateClock(); // Açılışta hemen çalıştır
+
+        // Sürüş Süresi ve Mola İkaz Mekanizması
+        function updateDrivingTimer() {
+            if (!drivingStartTime) return;
+            
+            const now = new Date();
+            const diffMs = now - drivingStartTime;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffSecs = Math.floor((diffMs % 60000) / 1000);
+            
+            drivingElapsedMinutes = diffMins;
+
+            // Alt paneldeki HH:MM formatı
+            const displayMins = diffMins.toString().padStart(2, '0');
+            const displaySecs = diffSecs.toString().padStart(2, '0');
+            drivingDurationEl.innerText = `${displayMins}:${displaySecs}`;
+
+            // Mola Eşiği Kontrolü
+            if (drivingElapsedMinutes >= MOLA_ESIGI_DAKIKA && fatigueAlertEl.classList.contains('hidden')) {
+                triggerFatigueAlert();
+            }
+        }
+
+        function triggerFatigueAlert() {
+            fatigueTimeText.innerText = `${drivingElapsedMinutes} dakikadır kesintisiz sürüş yapıyorsunuz.`;
+            fatigueAlertEl.classList.remove('hidden');
+
+            // Sesli İkaz (iOS/Safari Text-to-Speech Altyapısı)
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance("Uzun süredir araç kullanıyorsunuz, lütfen müsait bir yerde mola verin.");
+                utterance.lang = 'tr-TR';
+                utterance.rate = 0.9; // Biraz daha yavaş ve anlaşılır tonlama
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Mola Verildiğinde Sayacı Sıfırlama
+        dismissAlertBtn.addEventListener('click', () => {
+            fatigueAlertEl.classList.add('hidden');
+            drivingStartTime = new Date(); // Sürüş başlangıcını şu ana çekerek sıfırla
+            updateDrivingTimer();
+        });
 
         resetDistanceBtn.addEventListener('click', () => {
             totalDistance = 0;
             distanceEl.innerText = "0.00 km";
+            drivingStartTime = new Date(); // Sıfırla butonu süreyi de baştan başlatır
         });
 
-        // Generate the compass strip content
         function generateCompassStrip() {
             let stripContent = '';
-            // Generate a full circle, repeated to allow continuous sliding
-            for (let j = 0; j < 2; j++) { // Repeat twice for continuous look
+            for (let j = 0; j < 2; j++) {
                 for (let i = 0; i < 36; i++) {
                     let degree = i * 10;
                     let label = degree.toString().padStart(3, '0');
@@ -150,7 +227,6 @@
                     else if (degree === 180) label = 'S';
                     else if (degree === 270) label = 'W';
                     
-                    // Add label and ticks
                     stripContent += `<span class="compass-label inline-block text-center w-24">${label}</span>`;
                     stripContent += `<span class="compass-tick inline-block text-center w-6 text-sm text-slate-600">|</span>`;
                 }
@@ -162,6 +238,10 @@
         startBtn.addEventListener('click', async () => {
             weatherInfoEl.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-1"></i> Veriler çekiliyor...`;
             
+            // Sürüş kronometresini başlat
+            drivingStartTime = new Date();
+            setInterval(updateDrivingTimer, 1000);
+
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude;
@@ -222,7 +302,6 @@
             }
         }
 
-        // Updated for sliding HUD compass
         function handleOrientation(event) {
             let heading = null;
             if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
@@ -235,16 +314,13 @@
                 const roundedHeading = Math.round(heading);
                 headingDisplay.innerText = `${roundedHeading.toString().padStart(3, '0')}°`;
                 
-                // Calculate translation
-                const stripWidth = hudCompassStrip.offsetWidth / 2; // Single full circle width
+                const stripWidth = hudCompassStrip.offsetWidth / 2;
                 const translation = (heading / 360) * stripWidth;
                 
-                // Set the sliding position
                 hudCompassStrip.style.transform = `translateX(${-translation}px)`;
             }
         }
 
-        // Retain original fallback weather
         function fetchWeatherData(lat, lon) {
             const primaryUrl = `https://www.7timer.info/bin/astro.php?lon=${lon}&lat=${lat}&ac=0&unit=metric&output=json`;
             fetch(primaryUrl)
@@ -274,12 +350,12 @@
                 .catch(() => weatherInfoEl.innerText = "Hava durumu alınamadı.");
         }
 
-        // Retain original traffic data
         function fetchTrafficData(lat, lon) {
             trafficStatusEl.innerText = "Güncelleniyor...";
             trafficListEl.innerHTML = `<li class="text-green-400 font-medium"><i class="fa-solid fa-circle-check mr-2"></i>Kritik yoğunluk tespit edilmedi.</li>`;
         }
 
+        // Haversine Formülü
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
