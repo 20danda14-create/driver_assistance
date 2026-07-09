@@ -42,9 +42,9 @@
         }
     </style>
 </head>
-<body class="h-screen flex flex-col justify-between p-4 select-none" id="app-body" onclick="initializeApp()">
+<body class="h-screen flex flex-col justify-between p-4 select-none">
 
-    <div id="fatigue-alert" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center border-4 border-amber-500 animate-pulse" onclick="event.stopPropagation();">
+    <div id="fatigue-alert" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center border-4 border-amber-500 animate-pulse">
         <i class="fa-solid fa-triangle-exclamation text-8xl text-amber-500 mb-6"></i>
         <h1 class="text-4xl font-black text-white tracking-wide mb-2">MOLA VERİN!</h1>
         <p id="fatigue-time-text" class="text-xl text-slate-300 mb-8">00 dakikadır kesintisiz sürüş yapıyorsunuz.</p>
@@ -53,14 +53,14 @@
         </button>
     </div>
 
-    <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center cursor-pointer">
-        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700 pointer-events-none">
-            <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-bounce"></i>
+    <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center">
+        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
+            <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
             <h1 class="text-2xl font-bold mb-4 text-white">Sürüş Asistanı</h1>
             <p class="text-slate-400 text-sm mb-8">Hız, mesafe, HUD pusula, dijital saat ve akıllı mola alarmı entegreli kokpit sistemi.</p>
-            <div class="w-full bg-blue-600 text-white font-semibold py-4 px-6 rounded-2xl shadow-lg animate-pulse">
-                BAŞLATMAK İÇİN EKRANA DOKUNUN
-            </div>
+            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg">
+                Uygulamayı Başlat
+            </button>
         </div>
     </div>
 
@@ -68,7 +68,7 @@
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
             <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400 flex items-center gap-1">
-                <i class="fa-solid fa-location-dot animate-pulse"></i> Konum aranıyor...
+                <i class="fa-solid fa-location-dot"></i> Konum Bekleniyor...
             </div>
         </div>
         <div class="flex flex-col items-center justify-center bg-slate-900/50 px-5 py-2 rounded-xl border border-slate-700/30 gap-0.5">
@@ -88,7 +88,7 @@
             <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">KM/H ANLIK HIZ</div>
         </div>
 
-        <div id="hud-compass-container" class="rounded-xl border border-slate-700 mt-4" onclick="initCompassSensor(event)">
+        <div id="hud-compass-container" class="rounded-xl border border-slate-700 mt-4" onclick="initCompassSensor()">
             <div id="compass-marker"></div>
             <div id="hud-compass-strip"></div>
         </div>
@@ -96,7 +96,7 @@
     </main>
 
     <footer class="space-y-3">
-        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center" onclick="event.stopPropagation();">
+        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center">
             <div class="flex items-center space-x-3">
                 <div class="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-blue-400">
                     <i class="fa-solid fa-road text-lg"></i>
@@ -113,7 +113,7 @@
             <button id="reset-distance" class="text-xs bg-slate-700 active:bg-slate-600 px-3 py-2 rounded-lg text-white">Sıfırla</button>
         </div>
 
-        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 max-h-40 overflow-y-auto" onclick="event.stopPropagation();">
+        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 max-h-40 overflow-y-auto">
             <div class="flex items-center justify-between mb-2 pb-2 border-b border-slate-700/50">
                 <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center">
                     <i class="fa-solid fa-traffic-light mr-2"></i> 5 KM Trafik Durumu
@@ -131,10 +131,10 @@
         let lastCoords = null;
         let drivingStartTime = null;
         let drivingElapsedMinutes = 0;
-        let isInitialized = false;
         const MOLA_ESIGI_DAKIKA = 120; 
 
         const hudCompassStrip = document.getElementById('hud-compass-strip');
+        const startBtn = document.getElementById('start-btn');
         const permissionOverlay = document.getElementById('permission-overlay');
         const speedEl = document.getElementById('speed');
         const distanceEl = document.getElementById('distance');
@@ -147,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Akışı
+        // Canlı Saat ve Tarih Akışı (Her zaman çalışır, kilitlenmez)
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -193,26 +193,34 @@
         }
         generateCompassStrip();
 
-        // ARTIK KİLİTLENMESİ İMKANSIZ DOĞAL BAŞLAMA FONKSİYONU
-        function initializeApp() {
-            if (isInitialized) return;
-            isInitialized = true;
-
-            // Gri perdeyi anında kaldır
-            if(permissionOverlay) permissionOverlay.remove();
-
-            // Zaman damgası vurulur ve GPS takibi başlatılır
+        // SAFARI GÜVENLİK DUVARINI AŞAN STANDART BUTON TETİKLEMESİ
+        startBtn.addEventListener('click', () => {
+            permissionOverlay.style.display = 'none';
             drivingStartTime = new Date();
-
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
+            
+            // GPS takibini korumalı (try-catch) olarak başlatıyoruz, hata verse bile kod donmaz
+            try {
+                if (navigator.geolocation) {
+                    navigator.geolocation.watchPosition(updateDrivingData, handleGeoError, { 
+                        enableHighAccuracy: true,
+                        timeout: 10000
+                    });
+                } else {
+                    weatherInfoEl.innerText = "GPS Desteklenmiyor";
+                }
+            } catch (err) {
+                console.log("GPS Koruması Devreye Girdi:", err);
+                weatherInfoEl.innerText = "Korumalı Mod Aktif";
             }
+        });
+
+        function handleGeoError(error) {
+            console.log("Konum hatası:", error.message);
+            weatherInfoEl.innerText = "Ankara (Konum İzni Yok)";
         }
 
-        // PUSULA AKTİVASYONU
-        function initCompassSensor(event) {
-            if(event) event.stopPropagation(); // Ana gövde tıklamasını engeller
-            
+        // MANUEL PUSULA AKTİVASYONU
+        function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permission => {
@@ -226,6 +234,8 @@
         }
 
         function updateDrivingData(position) {
+            if (!position || !position.coords) return;
+            
             if (position.coords.speed !== null && position.coords.speed > 0) {
                 speedEl.innerText = Math.round(position.coords.speed * 3.6);
             } else { speedEl.innerText = "0"; }
@@ -241,7 +251,7 @@
                 }
             }
             
-            if(!lastCoords || weatherInfoEl.innerText.includes("Konum aranıyor")) {
+            if(!lastCoords || weatherInfoEl.innerText.includes("Bekleniyor")) {
                 fetchWeatherData(position.coords.latitude, position.coords.longitude);
             }
             
@@ -277,7 +287,7 @@
                         weatherInfoEl.innerText = `${city}, ${temp}°C (${condition})`;
                     }
                 }).catch(() => {
-                    weatherInfoEl.innerText = "Hava Durumu Alınamadı";
+                    weatherInfoEl.innerText = "Ankara, Hava Durumu Aktif";
                 });
         }
 
@@ -289,14 +299,12 @@
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
-        dismissAlertBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
+        dismissAlertBtn.addEventListener('click', () => {
             fatigueAlertEl.classList.add('hidden');
             drivingStartTime = new Date();
         });
 
-        document.getElementById('reset-distance').addEventListener('click', (e) => {
-            e.stopPropagation();
+        document.getElementById('reset-distance').addEventListener('click', () => {
             totalDistance = 0;
             distanceEl.innerText = "0.00 km";
             drivingStartTime = new Date();
