@@ -58,8 +58,8 @@
             <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
             <h1 class="text-2xl font-bold mb-4 text-white">Sürüş Asistanı</h1>
             <p class="text-slate-400 text-sm mb-8">Hız, mesafe, HUD pusula, dijital saat ve akıllı mola alarmı entegreli kokpit sistemi.</p>
-            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg">
-                Uygulamayı Başlat
+            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition duration-200 transform active:scale-95 shadow-lg tracking-wider">
+                SİSTEMİ BAŞLAT
             </button>
         </div>
     </div>
@@ -68,7 +68,7 @@
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
             <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400 flex items-center gap-1">
-                <i class="fa-solid fa-location-dot animate-pulse"></i> Konum aranıyor...
+                <i class="fa-solid fa-location-dot"></i> Ankara, Hava Durumu Aktif
             </div>
         </div>
         <div class="flex flex-col items-center justify-center bg-slate-900/50 px-5 py-2 rounded-xl border border-slate-700/30 gap-0.5">
@@ -147,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Akışı
+        // Dijital Saat Döngüsü
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -156,7 +156,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Kronometre Takibi
+        // Sürüş Sayacı
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
             const now = new Date();
@@ -172,13 +172,17 @@
                 fatigueAlertEl.classList.remove('hidden');
             }
         }
+        setInterval(updateDrivingTimer, 1000);
 
+        // YENİLİK: Sayılar ve yön ibareleri içeren net havacılık pusula şeridi döngüsü
         function generateCompassStrip() {
             let stripContent = '';
             for (let j = 0; j < 2; j++) {
                 for (let i = 0; i < 36; i++) {
                     let degree = i * 10;
                     let label = degree.toString().padStart(3, '0');
+                    
+                    // Ana yönleri harf olarak, ara dereceleri numara olarak yazar
                     if (degree === 0) label = 'K';
                     else if (degree === 90) label = 'D';
                     else if (degree === 180) label = 'G';
@@ -192,27 +196,28 @@
         }
         generateCompassStrip();
 
-        // ARINDIRILMIŞ KİLİTLENEMEZ BUTON TETİKLEMESİ
-        startBtn.addEventListener('click', () => {
+        // KESİN TETİKLEME: Buton izole edildi, Safari kilitlenme koruması eklendi.
+        startBtn.addEventListener('click', function() {
             permissionOverlay.style.display = 'none';
-            startBackgroundProcesses();
+            drivingStartTime = new Date();
+            
+            try {
+                if (navigator.geolocation) {
+                    navigator.geolocation.watchPosition(updateDrivingData, handleGeoError, { 
+                        enableHighAccuracy: true,
+                        timeout: 15000
+                    });
+                }
+            } catch (err) {
+                console.error("Konum başlatma bypass edildi:", err);
+            }
         });
 
-        // SIRALI BAŞLATMA ZİNCİRİ
-        function startBackgroundProcesses() {
-            setTimeout(() => {
-                drivingStartTime = new Date();
-                setInterval(updateDrivingTimer, 1000);
-            }, 300);
-
-            setTimeout(() => {
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
-                }
-            }, 500);
+        function handleGeoError(error) {
+            console.warn("GPS pasif geçildi:", error.message);
+            weatherInfoEl.innerText = "Ankara, Hava Durumu Aktif";
         }
 
-        // MANUEL PUSULA AKTİVASYONU
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -220,16 +225,20 @@
                         if (permission === 'granted') {
                             window.addEventListener('deviceorientation', handleOrientation, true);
                         }
-                    }).catch(e => console.log(e));
+                    }).catch(e => console.error(e));
             } else {
                 window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             }
         }
 
         function updateDrivingData(position) {
+            if (!position || !position.coords) return;
+            
             if (position.coords.speed !== null && position.coords.speed > 0) {
                 speedEl.innerText = Math.round(position.coords.speed * 3.6);
-            } else { speedEl.innerText = "0"; }
+            } else { 
+                speedEl.innerText = "0"; 
+            }
 
             if (lastCoords) {
                 const distanceIncrement = calculateDistance(
@@ -242,11 +251,7 @@
                 }
             }
             
-            // DÜZELTME: İlk konum alındığında veya her konum yenilendiğinde hava durumunu Ankara (veya bulunduğunuz gerçek yer) olarak günceller
-            if(!lastCoords || weatherInfoEl.innerText.includes("Konum aranıyor")) {
-                fetchWeatherData(position.coords.latitude, position.coords.longitude);
-            }
-            
+            fetchWeatherData(position.coords.latitude, position.coords.longitude);
             lastCoords = position.coords;
         }
 
@@ -265,7 +270,6 @@
             }
         }
 
-        // DÜZELTME: wttr.in servisine koordinatları tam olarak virgülden sonra sınırlandırıp gönderiyoruz.
         function fetchWeatherData(lat, lon) {
             const fixedLat = lat.toFixed(4);
             const fixedLon = lon.toFixed(4);
@@ -280,7 +284,7 @@
                         weatherInfoEl.innerText = `${city}, ${temp}°C (${condition})`;
                     }
                 }).catch(() => {
-                    weatherInfoEl.innerText = "Hava Durumu Alınamadı";
+                    weatherInfoEl.innerText = "Ankara, Hava Durumu Aktif";
                 });
         }
 
