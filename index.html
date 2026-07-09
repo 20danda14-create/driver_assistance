@@ -147,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Dijital Saat Döngüsü
+        // Dijital Saat
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -156,7 +156,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Sürüş Sayacı
+        // Kronometre
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
             const now = new Date();
@@ -174,7 +174,7 @@
         }
         setInterval(updateDrivingTimer, 1000);
 
-        // YENİLİK: Sayılar ve yön ibareleri içeren net havacılık pusula şeridi döngüsü
+        // Havacılık Pusula Şeridi - Sayılar ve Yönler Bir Arada
         function generateCompassStrip() {
             let stripContent = '';
             for (let j = 0; j < 2; j++) {
@@ -182,7 +182,6 @@
                     let degree = i * 10;
                     let label = degree.toString().padStart(3, '0');
                     
-                    // Ana yönleri harf olarak, ara dereceleri numara olarak yazar
                     if (degree === 0) label = 'K';
                     else if (degree === 90) label = 'D';
                     else if (degree === 180) label = 'G';
@@ -196,28 +195,34 @@
         }
         generateCompassStrip();
 
-        // KESİN TETİKLEME: Buton izole edildi, Safari kilitlenme koruması eklendi.
+        // SAFARI UYUMLU BAŞLATMA STRATEJİSİ
         startBtn.addEventListener('click', function() {
+            // Adım 1: Perdeyi anında kaldır (Safari bunu engellemez)
             permissionOverlay.style.display = 'none';
             drivingStartTime = new Date();
             
-            try {
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(updateDrivingData, handleGeoError, { 
-                        enableHighAccuracy: true,
-                        timeout: 15000
-                    });
+            // Adım 2: GPS talebini click event zincirinden ayırarak gecikmeli başlat
+            setTimeout(() => {
+                try {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.watchPosition(updateDrivingData, handleGeoError, { 
+                            enableHighAccuracy: true,
+                            maximumAge: 0,
+                            timeout: 15000
+                        });
+                    }
+                } catch (err) {
+                    console.error("GPS Geciktirme Hatası:", err);
                 }
-            } catch (err) {
-                console.error("Konum başlatma bypass edildi:", err);
-            }
+            }, 300);
         });
 
         function handleGeoError(error) {
-            console.warn("GPS pasif geçildi:", error.message);
+            console.warn("GPS Hatası yönetildi:", error.message);
             weatherInfoEl.innerText = "Ankara, Hava Durumu Aktif";
         }
 
+        // Adım 3: Pusulayı tamamen bağımsız bir dokunma alanına bağladık (Safari Kilit Çözücü)
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
