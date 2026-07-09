@@ -67,7 +67,9 @@
     <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg min-h-[4.5rem]">
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
-            <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400">İstanbul, 24°C</div>
+            <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400 flex items-center gap-1">
+                <i class="fa-solid fa-location-dot animate-pulse"></i> Konum aranıyor...
+            </div>
         </div>
         <div class="flex flex-col items-center justify-center bg-slate-900/50 px-5 py-2 rounded-xl border border-slate-700/30 gap-0.5">
             <div id="hud-time" class="text-xl font-mono font-bold text-white tracking-wider leading-none">00:00:00</div>
@@ -210,7 +212,7 @@
             }, 500);
         }
 
-        // MANUEL PUSULA AKTİVASYONU (Şeride dokununca açılır)
+        // MANUEL PUSULA AKTİVASYONU
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -239,11 +241,13 @@
                     distanceEl.innerText = totalDistance.toFixed(2) + " km";
                 }
             }
-            lastCoords = position.coords;
             
-            if(weatherInfoEl.innerText.includes("İstanbul")) {
+            // DÜZELTME: İlk konum alındığında veya her konum yenilendiğinde hava durumunu Ankara (veya bulunduğunuz gerçek yer) olarak günceller
+            if(!lastCoords || weatherInfoEl.innerText.includes("Konum aranıyor")) {
                 fetchWeatherData(position.coords.latitude, position.coords.longitude);
             }
+            
+            lastCoords = position.coords;
         }
 
         function handleOrientation(event) {
@@ -261,14 +265,23 @@
             }
         }
 
+        // DÜZELTME: wttr.in servisine koordinatları tam olarak virgülden sonra sınırlandırıp gönderiyoruz.
         function fetchWeatherData(lat, lon) {
-            fetch(`https://wttr.in/${lat},${lon}?format=j1`)
+            const fixedLat = lat.toFixed(4);
+            const fixedLon = lon.toFixed(4);
+            fetch(`https://wttr.in/${fixedLat},${fixedLon}?format=j1`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data && data.current_condition) {
-                        weatherInfoEl.innerText = `${data.current_condition[0].lang_tr[0].value}, ${data.current_condition[0].temp_C}°C`;
+                    if (data && data.current_condition && data.nearest_area) {
+                        const temp = data.current_condition[0].temp_C;
+                        const condition = data.current_condition[0].lang_tr ? data.current_condition[0].lang_tr[0].value : data.current_condition[0].weatherDesc[0].value;
+                        const city = data.nearest_area[0].areaName[0].value;
+                        
+                        weatherInfoEl.innerText = `${city}, ${temp}°C (${condition})`;
                     }
-                }).catch(() => weatherInfoEl.innerText = "Hava Durumu Aktif");
+                }).catch(() => {
+                    weatherInfoEl.innerText = "Hava Durumu Alınamadı";
+                });
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
