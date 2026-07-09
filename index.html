@@ -147,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Akışı
+        // Canlı Saat ve Tarih Akışı (Sayfa yüklendiği an bağımsız çalışır)
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -172,6 +172,7 @@
                 fatigueAlertEl.classList.remove('hidden');
             }
         }
+        setInterval(updateDrivingTimer, 1000);
 
         function generateCompassStrip() {
             let stripContent = '';
@@ -192,25 +193,18 @@
         }
         generateCompassStrip();
 
-        // ARINDIRILMIŞ KİLİTLENEMEZ BUTON TETİKLEMESİ
+        // KİLİTLENMESİ TEKNİK OLARAK İMKANSIZ OLAN BUTON FONKSİYONU
         startBtn.addEventListener('click', () => {
-            permissionOverlay.style.display = 'none';
-            startBackgroundProcesses();
+            permissionOverlay.remove(); // Sadece perdeyi kaldırır, başka hiçbir şey yapmaz.
+            drivingStartTime = new Date(); // Kronometre başlangıç zamanını damgalar.
         });
 
-        // SIRALI BAŞLATMA ZİNCİRİ
-        function startBackgroundProcesses() {
-            setTimeout(() => {
-                drivingStartTime = new Date();
-                setInterval(updateDrivingTimer, 1000);
-            }, 300);
-
-            setTimeout(() => {
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
-                }
-            }, 500);
-        }
+        // TARAYICI ÇALIŞMA AYARI: Konum izleme buton dışına, sayfa yüklenme olayına taşındı.
+        document.addEventListener('DOMContentLoaded', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
+            }
+        });
 
         // MANUEL PUSULA AKTİVASYONU
         function initCompassSensor() {
@@ -242,7 +236,6 @@
                 }
             }
             
-            // DÜZELTME: İlk konum alındığında veya her konum yenilendiğinde hava durumunu Ankara (veya bulunduğunuz gerçek yer) olarak günceller
             if(!lastCoords || weatherInfoEl.innerText.includes("Konum aranıyor")) {
                 fetchWeatherData(position.coords.latitude, position.coords.longitude);
             }
@@ -265,7 +258,6 @@
             }
         }
 
-        // DÜZELTME: wttr.in servisine koordinatları tam olarak virgülden sonra sınırlandırıp gönderiyoruz.
         function fetchWeatherData(lat, lon) {
             const fixedLat = lat.toFixed(4);
             const fixedLon = lon.toFixed(4);
