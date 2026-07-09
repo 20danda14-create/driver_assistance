@@ -64,14 +64,14 @@
         </div>
     </div>
 
-    <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg">
+    <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg min-h-[4.5rem]">
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
             <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400">İstanbul, 24°C</div>
         </div>
-        <div class="text-center bg-slate-900/50 px-4 py-1.5 rounded-xl border border-slate-700/30">
-            <div id="hud-time" class="text-lg font-mono font-bold text-white tracking-wider">00:00:00</div>
-            <div id="hud-date" class="text-[3px] text-slate-400 font-medium uppercase tracking-widest">-- --- ----</div>
+        <div class="flex flex-col items-center justify-center bg-slate-900/50 px-5 py-2 rounded-xl border border-slate-700/30 gap-0.5">
+            <div id="hud-time" class="text-xl font-mono font-bold text-white tracking-wider leading-none">00:00:00</div>
+            <div id="hud-date" class="text-[11px] text-slate-300 font-semibold uppercase tracking-wider leading-none mt-1">-- --- ----</div>
         </div>
         <div class="text-right">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400">
@@ -86,8 +86,7 @@
             <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">KM/H ANLIK HIZ</div>
         </div>
 
-        <div class="text-center text-5xl font-mono font-bold text-[#00f2fe]" id="heading-display">000°</div>
-        <div id="hud-compass-container" class="rounded-xl border border-slate-700" onclick="initCompassSensor()">
+        <div id="hud-compass-container" class="rounded-xl border border-slate-700 mt-4" onclick="initCompassSensor()">
             <div id="compass-marker"></div>
             <div id="hud-compass-strip"></div>
         </div>
@@ -133,7 +132,6 @@
         const MOLA_ESIGI_DAKIKA = 120; 
 
         const hudCompassStrip = document.getElementById('hud-compass-strip');
-        const headingDisplay = document.getElementById('heading-display');
         const startBtn = document.getElementById('start-btn');
         const permissionOverlay = document.getElementById('permission-overlay');
         const speedEl = document.getElementById('speed');
@@ -147,7 +145,32 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Pusula arka plan şeridini çiz (Bağımsız çalışır)
+        // Canlı Saat ve Tarih Akışı
+        function updateClock() {
+            const now = new Date();
+            timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
+            dateEl.innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'LONG', year: 'numeric' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Kronometre Takibi
+        function updateDrivingTimer() {
+            if (!drivingStartTime) return;
+            const now = new Date();
+            const diffMs = now - drivingStartTime;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffSecs = Math.floor((diffMs % 60000) / 1000);
+            
+            drivingElapsedMinutes = diffMins;
+            drivingDurationEl.innerText = `${diffMins.toString().padStart(2, '0')}:${diffSecs.toString().padStart(2, '0')}`;
+
+            if (drivingElapsedMinutes >= MOLA_ESIGI_DAKIKA && fatigueAlertEl.classList.contains('hidden')) {
+                fatigueTimeText.innerText = `${drivingElapsedMinutes} dakikadır kesintisiz sürüş yapıyorsunuz.`;
+                fatigueAlertEl.classList.remove('hidden');
+            }
+        }
+
         function generateCompassStrip() {
             let stripContent = '';
             for (let j = 0; j < 2; j++) {
@@ -167,50 +190,19 @@
         }
         generateCompassStrip();
 
-        // 1. ADIM: TAMAMEN ARINDIRILMIŞ BUTON TETİKLEMESİ (KİLİTLENEMEZ)
+        // ARINDIRILMIŞ KİLİTLENEMEZ BUTON TETİKLEMESİ
         startBtn.addEventListener('click', () => {
-            // Sadece perdeyi kaldırıyoruz, tarayıcının takılma ihtimali yok.
             permissionOverlay.style.display = 'none';
-            
-            // Arka plan işlerini gecikmeli ve sıralı olarak başlatıyoruz
             startBackgroundProcesses();
         });
 
-        // 2. ADIM: SIRALI BAŞLATMA ZİNCİRİ
+        // SIRALI BAŞLATMA ZİNCİRİ
         function startBackgroundProcesses() {
-            // 100ms sonra: Saat ve Tarihi aktif et
-            setTimeout(() => {
-                function updateClock() {
-                    const now = new Date();
-                    timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
-                    dateEl.innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'LONG', year: 'numeric' });
-                }
-                setInterval(updateClock, 1000);
-                updateClock();
-            }, 100);
-
-            // 300ms sonra: Sürüş Sayacını ve Kronometreyi aktif et
             setTimeout(() => {
                 drivingStartTime = new Date();
-                function updateDrivingTimer() {
-                    if (!drivingStartTime) return;
-                    const now = new Date();
-                    const diffMs = now - drivingStartTime;
-                    const diffMins = Math.floor(diffMs / 60000);
-                    const diffSecs = Math.floor((diffMs % 60000) / 1000);
-                    
-                    drivingElapsedMinutes = diffMins;
-                    drivingDurationEl.innerText = `${diffMins.toString().padStart(2, '0')}:${diffSecs.toString().padStart(2, '0')}`;
-
-                    if (drivingElapsedMinutes >= MOLA_ESIGI_DAKIKA && fatigueAlertEl.classList.contains('hidden')) {
-                        fatigueTimeText.innerText = `${drivingElapsedMinutes} dakikadır kesintisiz sürüş yapıyorsunuz.`;
-                        fatigueAlertEl.classList.remove('hidden');
-                    }
-                }
                 setInterval(updateDrivingTimer, 1000);
             }, 300);
 
-            // 500ms sonra: GPS ve Hız Takibini aktif et
             setTimeout(() => {
                 if (navigator.geolocation) {
                     navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
@@ -218,7 +210,7 @@
             }, 500);
         }
 
-        // 3. ADIM: KORUMALI MANUEL PUSULA AKTİVASYONU
+        // MANUEL PUSULA AKTİVASYONU (Şeride dokununca açılır)
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -263,8 +255,6 @@
             }
 
             if (heading !== null) {
-                const roundedHeading = Math.round(heading);
-                headingDisplay.innerText = `${roundedHeading.toString().padStart(3, '0')}°`;
                 const stripWidth = hudCompassStrip.offsetWidth / 2;
                 const translation = (heading / 360) * stripWidth;
                 hudCompassStrip.style.transform = `translateX(${-translation}px)`;
