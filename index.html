@@ -53,6 +53,17 @@
         </button>
     </div>
 
+    <div id="permission-overlay" class="fixed inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-6 text-center">
+        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
+            <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
+            <h1 class="text-2xl font-bold mb-4 text-white">Sürüş Asistanı</h1>
+            <p class="text-slate-400 text-sm mb-8">Hız, mesafe, HUD pusula, dijital saat ve akıllı mola alarmı entegreli kokpit sistemi.</p>
+            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition duration-200 transform active:scale-95 shadow-lg tracking-wider">
+                SİSTEMİ BAŞLAT
+            </button>
+        </div>
+    </div>
+
     <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg min-h-[4.5rem]">
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
@@ -123,6 +134,8 @@
         const MOLA_ESIGI_DAKIKA = 120; 
 
         const hudCompassStrip = document.getElementById('hud-compass-strip');
+        const startBtn = document.getElementById('start-btn');
+        const permissionOverlay = document.getElementById('permission-overlay');
         const speedEl = document.getElementById('speed');
         const distanceEl = document.getElementById('distance');
         const weatherInfoEl = document.getElementById('weather-info');
@@ -134,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Akışı (Doğrudan başlar, kilitlenemez)
+        // Canlı Saat ve Tarih Döngüsü (Yüklenir yüklenmez başlar)
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -143,7 +156,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Kronometre Takibi
+        // Sürüş Kronometresi
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
             const now = new Date();
@@ -180,28 +193,37 @@
         }
         generateCompassStrip();
 
-        // OTOMATİK GÜVENLİ BAŞLAMA ZİNCİRİ (Buton veya perde olmadan sayfa yüklendiği an tetiklenir)
-        document.addEventListener('DOMContentLoaded', () => {
+        // KESİN ÇÖZÜM: BÜTÜN SİSTEMLERİ GÜVENLİ BİR ŞEKİLDE TETİKLEYEN DOĞRUDAN BUTON EVENTİ
+        startBtn.addEventListener('click', function() {
+            // 1. Giriş ekranını anında gizle
+            permissionOverlay.style.display = 'none';
+            
+            // 2. Kronometre sıfır noktasını ayarla
             drivingStartTime = new Date();
             
+            // 3. Tarayıcı izin mekanizmasını tamamen izole ve korumalı blokta çağır
             try {
                 if (navigator.geolocation) {
                     navigator.geolocation.watchPosition(updateDrivingData, handleGeoError, { 
                         enableHighAccuracy: true,
-                        timeout: 10000
+                        maximumAge: 0,
+                        timeout: 15000
                     });
+                } else {
+                    weatherInfoEl.innerText = "Ankara, GPS Yok";
                 }
             } catch (err) {
-                console.log("GPS Korumalı Mod:", err);
+                console.error("GPS Başlatma Hatası Kontrol Altında:", err);
+                weatherInfoEl.innerText = "Ankara, Güvenli Mod";
             }
         });
 
         function handleGeoError(error) {
-            console.log("Konum izni reddedildi veya hata oluştu:", error.message);
-            weatherInfoEl.innerText = "Ankara (Konum Alınamadı)";
+            console.warn("Konum Hatası Detayı:", error.message);
+            weatherInfoEl.innerText = "Ankara, Hava Durumu Aktif";
         }
 
-        // MANUEL PUSULA AKTİVASYONU (Şeride basınca tarayıcı izni tetikler)
+        // PUSULA SENSÖR AKTİVASYONU (Şeride basınca açılır)
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -209,7 +231,7 @@
                         if (permission === 'granted') {
                             window.addEventListener('deviceorientation', handleOrientation, true);
                         }
-                    }).catch(e => console.log(e));
+                    }).catch(e => console.error(e));
             } else {
                 window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             }
@@ -218,10 +240,14 @@
         function updateDrivingData(position) {
             if (!position || !position.coords) return;
             
+            // Hız güncelleme
             if (position.coords.speed !== null && position.coords.speed > 0) {
                 speedEl.innerText = Math.round(position.coords.speed * 3.6);
-            } else { speedEl.innerText = "0"; }
+            } else { 
+                speedEl.innerText = "0"; 
+            }
 
+            // Mesafe güncelleme
             if (lastCoords) {
                 const distanceIncrement = calculateDistance(
                     lastCoords.latitude, lastCoords.longitude,
@@ -233,6 +259,7 @@
                 }
             }
             
+            // Gerçek koordinatlarla hava durumunu arka planda güncelle
             fetchWeatherData(position.coords.latitude, position.coords.longitude);
             lastCoords = position.coords;
         }
