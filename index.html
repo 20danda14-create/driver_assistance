@@ -53,13 +53,13 @@
         </button>
     </div>
 
-    <div id="permission-overlay" class="fixed inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-6 text-center">
+    <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center">
         <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
             <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
             <h1 class="text-2xl font-bold mb-4 text-white">Sürüş Asistanı</h1>
             <p class="text-slate-400 text-sm mb-8">Hız, mesafe, HUD pusula, dijital saat ve akıllı mola alarmı entegreli kokpit sistemi.</p>
-            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-2xl transition duration-200 transform active:scale-95 shadow-lg tracking-wider">
-                SİSTEMİ BAŞLAT
+            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg">
+                Uygulamayı Başlat
             </button>
         </div>
     </div>
@@ -68,7 +68,7 @@
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
             <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400 flex items-center gap-1">
-                <i class="fa-solid fa-location-dot"></i> Ankara, Hava Durumu Aktif
+                <i class="fa-solid fa-location-dot"></i> Konum Bekleniyor...
             </div>
         </div>
         <div class="flex flex-col items-center justify-center bg-slate-900/50 px-5 py-2 rounded-xl border border-slate-700/30 gap-0.5">
@@ -147,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Döngüsü (Yüklenir yüklenmez başlar)
+        // Canlı Saat ve Tarih Akışı (Her zaman çalışır, kilitlenmez)
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -156,7 +156,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Sürüş Kronometresi
+        // Kronometre Takibi
         function updateDrivingTimer() {
             if (!drivingStartTime) return;
             const now = new Date();
@@ -193,37 +193,33 @@
         }
         generateCompassStrip();
 
-        // KESİN ÇÖZÜM: BÜTÜN SİSTEMLERİ GÜVENLİ BİR ŞEKİLDE TETİKLEYEN DOĞRUDAN BUTON EVENTİ
-        startBtn.addEventListener('click', function() {
-            // 1. Giriş ekranını anında gizle
+        // SAFARI GÜVENLİK DUVARINI AŞAN STANDART BUTON TETİKLEMESİ
+        startBtn.addEventListener('click', () => {
             permissionOverlay.style.display = 'none';
-            
-            // 2. Kronometre sıfır noktasını ayarla
             drivingStartTime = new Date();
             
-            // 3. Tarayıcı izin mekanizmasını tamamen izole ve korumalı blokta çağır
+            // GPS takibini korumalı (try-catch) olarak başlatıyoruz, hata verse bile kod donmaz
             try {
                 if (navigator.geolocation) {
                     navigator.geolocation.watchPosition(updateDrivingData, handleGeoError, { 
                         enableHighAccuracy: true,
-                        maximumAge: 0,
-                        timeout: 15000
+                        timeout: 10000
                     });
                 } else {
-                    weatherInfoEl.innerText = "Ankara, GPS Yok";
+                    weatherInfoEl.innerText = "GPS Desteklenmiyor";
                 }
             } catch (err) {
-                console.error("GPS Başlatma Hatası Kontrol Altında:", err);
-                weatherInfoEl.innerText = "Ankara, Güvenli Mod";
+                console.log("GPS Koruması Devreye Girdi:", err);
+                weatherInfoEl.innerText = "Korumalı Mod Aktif";
             }
         });
 
         function handleGeoError(error) {
-            console.warn("Konum Hatası Detayı:", error.message);
-            weatherInfoEl.innerText = "Ankara, Hava Durumu Aktif";
+            console.log("Konum hatası:", error.message);
+            weatherInfoEl.innerText = "Ankara (Konum İzni Yok)";
         }
 
-        // PUSULA SENSÖR AKTİVASYONU (Şeride basınca açılır)
+        // MANUEL PUSULA AKTİVASYONU
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -231,7 +227,7 @@
                         if (permission === 'granted') {
                             window.addEventListener('deviceorientation', handleOrientation, true);
                         }
-                    }).catch(e => console.error(e));
+                    }).catch(e => console.log(e));
             } else {
                 window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             }
@@ -240,14 +236,10 @@
         function updateDrivingData(position) {
             if (!position || !position.coords) return;
             
-            // Hız güncelleme
             if (position.coords.speed !== null && position.coords.speed > 0) {
                 speedEl.innerText = Math.round(position.coords.speed * 3.6);
-            } else { 
-                speedEl.innerText = "0"; 
-            }
+            } else { speedEl.innerText = "0"; }
 
-            // Mesafe güncelleme
             if (lastCoords) {
                 const distanceIncrement = calculateDistance(
                     lastCoords.latitude, lastCoords.longitude,
@@ -259,8 +251,10 @@
                 }
             }
             
-            // Gerçek koordinatlarla hava durumunu arka planda güncelle
-            fetchWeatherData(position.coords.latitude, position.coords.longitude);
+            if(!lastCoords || weatherInfoEl.innerText.includes("Bekleniyor")) {
+                fetchWeatherData(position.coords.latitude, position.coords.longitude);
+            }
+            
             lastCoords = position.coords;
         }
 
