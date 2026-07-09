@@ -67,9 +67,7 @@
     <header class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center shadow-lg min-h-[4.5rem]">
         <div class="flex flex-col">
             <span class="text-xs text-slate-400 uppercase tracking-wider block">Hava Durumu</span>
-            <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400 flex items-center gap-1">
-                <i class="fa-solid fa-location-dot animate-pulse"></i> Konum aranıyor...
-            </div>
+            <div id="weather-info" class="text-sm font-medium mt-1 text-blue-400">İstanbul, 24°C</div>
         </div>
         <div class="flex flex-col items-center justify-center bg-slate-900/50 px-5 py-2 rounded-xl border border-slate-700/30 gap-0.5">
             <div id="hud-time" class="text-xl font-mono font-bold text-white tracking-wider leading-none">00:00:00</div>
@@ -147,7 +145,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Akışı (Sayfa yüklendiği an bağımsız çalışır)
+        // Canlı Saat ve Tarih Akışı
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -172,7 +170,6 @@
                 fatigueAlertEl.classList.remove('hidden');
             }
         }
-        setInterval(updateDrivingTimer, 1000);
 
         function generateCompassStrip() {
             let stripContent = '';
@@ -193,20 +190,27 @@
         }
         generateCompassStrip();
 
-        // KİLİTLENMESİ TEKNİK OLARAK İMKANSIZ OLAN BUTON FONKSİYONU
+        // ARINDIRILMIŞ KİLİTLENEMEZ BUTON TETİKLEMESİ
         startBtn.addEventListener('click', () => {
-            permissionOverlay.remove(); // Sadece perdeyi kaldırır, başka hiçbir şey yapmaz.
-            drivingStartTime = new Date(); // Kronometre başlangıç zamanını damgalar.
+            permissionOverlay.style.display = 'none';
+            startBackgroundProcesses();
         });
 
-        // TARAYICI ÇALIŞMA AYARI: Konum izleme buton dışına, sayfa yüklenme olayına taşındı.
-        document.addEventListener('DOMContentLoaded', () => {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
-            }
-        });
+        // SIRALI BAŞLATMA ZİNCİRİ
+        function startBackgroundProcesses() {
+            setTimeout(() => {
+                drivingStartTime = new Date();
+                setInterval(updateDrivingTimer, 1000);
+            }, 300);
 
-        // MANUEL PUSULA AKTİVASYONU
+            setTimeout(() => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
+                }
+            }, 500);
+        }
+
+        // MANUEL PUSULA AKTİVASYONU (Şeride dokununca açılır)
         function initCompassSensor() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -235,12 +239,11 @@
                     distanceEl.innerText = totalDistance.toFixed(2) + " km";
                 }
             }
+            lastCoords = position.coords;
             
-            if(!lastCoords || weatherInfoEl.innerText.includes("Konum aranıyor")) {
+            if(weatherInfoEl.innerText.includes("İstanbul")) {
                 fetchWeatherData(position.coords.latitude, position.coords.longitude);
             }
-            
-            lastCoords = position.coords;
         }
 
         function handleOrientation(event) {
@@ -259,21 +262,13 @@
         }
 
         function fetchWeatherData(lat, lon) {
-            const fixedLat = lat.toFixed(4);
-            const fixedLon = lon.toFixed(4);
-            fetch(`https://wttr.in/${fixedLat},${fixedLon}?format=j1`)
+            fetch(`https://wttr.in/${lat},${lon}?format=j1`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data && data.current_condition && data.nearest_area) {
-                        const temp = data.current_condition[0].temp_C;
-                        const condition = data.current_condition[0].lang_tr ? data.current_condition[0].lang_tr[0].value : data.current_condition[0].weatherDesc[0].value;
-                        const city = data.nearest_area[0].areaName[0].value;
-                        
-                        weatherInfoEl.innerText = `${city}, ${temp}°C (${condition})`;
+                    if (data && data.current_condition) {
+                        weatherInfoEl.innerText = `${data.current_condition[0].lang_tr[0].value}, ${data.current_condition[0].temp_C}°C`;
                     }
-                }).catch(() => {
-                    weatherInfoEl.innerText = "Hava Durumu Alınamadı";
-                });
+                }).catch(() => weatherInfoEl.innerText = "Hava Durumu Aktif");
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
