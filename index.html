@@ -42,9 +42,9 @@
         }
     </style>
 </head>
-<body class="h-screen flex flex-col justify-between p-4 select-none">
+<body class="h-screen flex flex-col justify-between p-4 select-none" id="app-body" onclick="initializeApp()">
 
-    <div id="fatigue-alert" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center border-4 border-amber-500 animate-pulse">
+    <div id="fatigue-alert" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center border-4 border-amber-500 animate-pulse" onclick="event.stopPropagation();">
         <i class="fa-solid fa-triangle-exclamation text-8xl text-amber-500 mb-6"></i>
         <h1 class="text-4xl font-black text-white tracking-wide mb-2">MOLA VERİN!</h1>
         <p id="fatigue-time-text" class="text-xl text-slate-300 mb-8">00 dakikadır kesintisiz sürüş yapıyorsunuz.</p>
@@ -53,14 +53,14 @@
         </button>
     </div>
 
-    <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center">
-        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700">
-            <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-pulse"></i>
+    <div id="permission-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center cursor-pointer">
+        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm border border-slate-700 pointer-events-none">
+            <i class="fa-solid fa-car-side text-6xl text-blue-500 mb-6 animate-bounce"></i>
             <h1 class="text-2xl font-bold mb-4 text-white">Sürüş Asistanı</h1>
             <p class="text-slate-400 text-sm mb-8">Hız, mesafe, HUD pusula, dijital saat ve akıllı mola alarmı entegreli kokpit sistemi.</p>
-            <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-2xl transition duration-300 transform active:scale-95 shadow-lg">
-                Uygulamayı Başlat
-            </button>
+            <div class="w-full bg-blue-600 text-white font-semibold py-4 px-6 rounded-2xl shadow-lg animate-pulse">
+                BAŞLATMAK İÇİN EKRANA DOKUNUN
+            </div>
         </div>
     </div>
 
@@ -88,7 +88,7 @@
             <div class="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">KM/H ANLIK HIZ</div>
         </div>
 
-        <div id="hud-compass-container" class="rounded-xl border border-slate-700 mt-4" onclick="initCompassSensor()">
+        <div id="hud-compass-container" class="rounded-xl border border-slate-700 mt-4" onclick="initCompassSensor(event)">
             <div id="compass-marker"></div>
             <div id="hud-compass-strip"></div>
         </div>
@@ -96,7 +96,7 @@
     </main>
 
     <footer class="space-y-3">
-        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center">
+        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center" onclick="event.stopPropagation();">
             <div class="flex items-center space-x-3">
                 <div class="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-blue-400">
                     <i class="fa-solid fa-road text-lg"></i>
@@ -113,7 +113,7 @@
             <button id="reset-distance" class="text-xs bg-slate-700 active:bg-slate-600 px-3 py-2 rounded-lg text-white">Sıfırla</button>
         </div>
 
-        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 max-h-40 overflow-y-auto">
+        <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 max-h-40 overflow-y-auto" onclick="event.stopPropagation();">
             <div class="flex items-center justify-between mb-2 pb-2 border-b border-slate-700/50">
                 <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center">
                     <i class="fa-solid fa-traffic-light mr-2"></i> 5 KM Trafik Durumu
@@ -131,10 +131,10 @@
         let lastCoords = null;
         let drivingStartTime = null;
         let drivingElapsedMinutes = 0;
+        let isInitialized = false;
         const MOLA_ESIGI_DAKIKA = 120; 
 
         const hudCompassStrip = document.getElementById('hud-compass-strip');
-        const startBtn = document.getElementById('start-btn');
         const permissionOverlay = document.getElementById('permission-overlay');
         const speedEl = document.getElementById('speed');
         const distanceEl = document.getElementById('distance');
@@ -147,7 +147,7 @@
         const fatigueTimeText = document.getElementById('fatigue-time-text');
         const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
 
-        // Canlı Saat ve Tarih Akışı (Sayfa yüklendiği an bağımsız çalışır)
+        // Canlı Saat ve Tarih Akışı
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('tr-TR', { hour12: false });
@@ -193,21 +193,26 @@
         }
         generateCompassStrip();
 
-        // KİLİTLENMESİ TEKNİK OLARAK İMKANSIZ OLAN BUTON FONKSİYONU
-        startBtn.addEventListener('click', () => {
-            permissionOverlay.remove(); // Sadece perdeyi kaldırır, başka hiçbir şey yapmaz.
-            drivingStartTime = new Date(); // Kronometre başlangıç zamanını damgalar.
-        });
+        // ARTIK KİLİTLENMESİ İMKANSIZ DOĞAL BAŞLAMA FONKSİYONU
+        function initializeApp() {
+            if (isInitialized) return;
+            isInitialized = true;
 
-        // TARAYICI ÇALIŞMA AYARI: Konum izleme buton dışına, sayfa yüklenme olayına taşındı.
-        document.addEventListener('DOMContentLoaded', () => {
+            // Gri perdeyi anında kaldır
+            if(permissionOverlay) permissionOverlay.remove();
+
+            // Zaman damgası vurulur ve GPS takibi başlatılır
+            drivingStartTime = new Date();
+
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(updateDrivingData, null, { enableHighAccuracy: true });
             }
-        });
+        }
 
-        // MANUEL PUSULA AKTİVASYONU
-        function initCompassSensor() {
+        // PUSULA AKTİVASYONU
+        function initCompassSensor(event) {
+            if(event) event.stopPropagation(); // Ana gövde tıklamasını engeller
+            
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permission => {
@@ -284,12 +289,14 @@
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
-        dismissAlertBtn.addEventListener('click', () => {
+        dismissAlertBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             fatigueAlertEl.classList.add('hidden');
             drivingStartTime = new Date();
         });
 
-        document.getElementById('reset-distance').addEventListener('click', () => {
+        document.getElementById('reset-distance').addEventListener('click', (e) => {
+            e.stopPropagation();
             totalDistance = 0;
             distanceEl.innerText = "0.00 km";
             drivingStartTime = new Date();
